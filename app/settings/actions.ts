@@ -12,25 +12,27 @@ export async function updateProfile(formData: FormData) {
 
   const username = formData.get('username') as string
 
-  // Kullanıcı adı boş mu kontrol et
-  if (error) {
-    console.error(error)
-    // Hata nesnesi döndürmek yerine redirect ile sayfayı yeniliyoruz
-    return redirect('/settings?error=true')
+  // 1. Önce kullanıcı adı geçerli mi diye bak
+  if (!username || username.length < 3) {
+    // Return yerine redirect kullanıyoruz ki tip hatası olmasın
+    return redirect('/settings?error=short')
   }
 
-  // Veritabanını güncelle
+  // 2. Şimdi veritabanını güncellemeye çalış
+  // (Hata burada oluşabilir, o yüzden error değişkeni burada tanımlanıyor)
   const { error } = await supabase
     .from('profiles')
     .update({ username: username })
     .eq('id', user.id)
 
+  // 3. Veritabanı hatası var mı kontrol et
   if (error) {
-    // Genelde "username already exists" hatası olur (veritabanında unique yapmıştık)
-    return { error: "Bu kullanıcı adı alınmış." }
+    console.error('Profil güncelleme hatası:', error)
+    return redirect('/settings?error=exists')
   }
 
+  // 4. Her şey yolundaysa
   revalidatePath('/dashboard')
   revalidatePath('/settings')
-  redirect('/dashboard') // İş bitince dashboarda dön
+  redirect('/dashboard')
 }
