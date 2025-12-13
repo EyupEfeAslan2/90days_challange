@@ -65,17 +65,29 @@ export default async function Dashboard() {
       <div className="max-w-4xl mx-auto">
         
         {/* Header */}
-        <header className="flex justify-between items-center py-6 border-b border-gray-800">
-          <Link href="/" className="text-2xl font-bold text-red-600 tracking-tighter">90 GÜN</Link>
-          <div className="flex items-center gap-4">
-            <Link href="/settings" className="text-gray-400 hover:text-white text-sm hidden sm:inline transition border-b border-transparent hover:border-gray-500">
-              {profile?.username ? `@${profile.username}` : user.email}
-            </Link>
-            <form action={signout}>
-              <button className="text-gray-400 hover:text-white text-sm transition">Çıkış</button>
-            </form>
-          </div>
-        </header>
+<header className="flex justify-between items-center py-6 border-b border-gray-800">
+  <div className="flex items-center gap-6">
+    <Link href="/" className="text-2xl font-bold text-red-600 tracking-tighter">90 GÜN</Link>
+    
+    {/* YENİ EKLENEN BUTON */}
+    <Link href="/feed" className="text-sm font-bold text-gray-400 hover:text-white hover:underline decoration-red-600 underline-offset-4 transition">
+      Canlı Akış 🔴
+    </Link>
+
+    <Link href="/leaderboard" className="text-sm font-bold text-yellow-600 hover:text-yellow-400 hover:underline decoration-yellow-500 underline-offset-4 transition">
+  Sıralama 🏆
+    </Link>
+  </div>
+
+  <div className="flex items-center gap-4">
+    <Link href="/settings" className="text-gray-400 hover:text-white text-sm hidden sm:inline transition border-b border-transparent hover:border-gray-500">
+      {profile?.username ? `@${profile.username}` : user.email}
+    </Link>
+    <form action={signout}>
+      <button className="text-gray-400 hover:text-white text-sm transition">Çıkış</button>
+    </form>
+  </div>
+</header>
 
         {/* Ana İçerik */}
         <div className="mt-8 space-y-8">

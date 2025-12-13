@@ -13,8 +13,10 @@ export async function updateProfile(formData: FormData) {
   const username = formData.get('username') as string
 
   // Kullanıcı adı boş mu kontrol et
-  if (!username || username.length < 3) {
-    return { error: "Kullanıcı adı en az 3 karakter olmalı." }
+  if (error) {
+    console.error(error)
+    // Hata nesnesi döndürmek yerine redirect ile sayfayı yeniliyoruz
+    return redirect('/settings?error=true')
   }
 
   // Veritabanını güncelle
