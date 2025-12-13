@@ -11,13 +11,16 @@ export default async function Dashboard() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  // 2. Profil Bilgisini Çek (Username için)
+  // 2. Profil Kontrolü (Username yoksa Onboarding'e git)
   const { data: profile } = await supabase
     .from('profiles')
     .select('username')
     .eq('id', user.id)
     .single()
-
+  
+  if (!profile?.username) {
+    redirect('/onboarding')
+  }
   // Eğer kullanıcı adı yoksa, ayarlara gitmesi için uyarı gösterilebilir veya yönlendirilebilir.
   // Şimdilik e-mail gösterelim eğer yoksa.
 
@@ -80,7 +83,7 @@ export default async function Dashboard() {
   </div>
 
   <div className="flex items-center gap-4">
-    <Link href="/settings" className="text-gray-400 hover:text-white text-sm hidden sm:inline transition border-b border-transparent hover:border-gray-500">
+    <Link href="/settings" className="text-gray-400 hover:text-white text-sm transition border-b border-transparent hover:border-gray-500">
       {profile?.username ? `@${profile.username}` : user.email}
     </Link>
     <form action={signout}>
