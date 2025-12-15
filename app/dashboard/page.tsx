@@ -1,8 +1,13 @@
 import { createClient } from '@/utils/supabase/server'
 import { submitDailyLog } from './actions'
 import Link from 'next/link'
+import ChallengeSelector from '@/components/ChallengeSelector'
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ id?: string }>
+}) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
@@ -10,8 +15,11 @@ export default async function DashboardPage() {
     return <div className="text-white p-10 pt-28">Giriş yapmalısın.</div>
   }
 
-  // 1. Kullanıcının katıldığı EN SON yarışmayı çek (Tarihine bakmaksızın)
-  const { data: lastJoined } = await supabase
+  const params = await searchParams
+  const selectedId = params.id
+
+  // 1. Kullanıcının katıldığı TÜM yarışmaları çek
+  const { data: userChallenges } = await supabase
     .from('user_challenges')
     .select(`
       challenge_id,
@@ -25,14 +33,9 @@ export default async function DashboardPage() {
       )
     `)
     .eq('user_id', user.id)
-    .order('joined_at', { ascending: false }) // En son katıldığını en üste al
-    .limit(1)
-    .single()
+    .order('joined_at', { ascending: false })
 
-  const challenge = lastJoined?.challenges
-
-  // EĞER HİÇBİR YARIŞMAYA KATILMAMIŞSA:
-  if (!challenge) {
+  if (!userChallenges || userChallenges.length === 0) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center text-center p-4 pt-28">
         <h1 className="text-3xl font-bold text-white mb-4">Henüz bir cephede değilsin.</h1>
@@ -46,27 +49,56 @@ export default async function DashboardPage() {
     )
   }
 
-  // 2. Bugünün tarihini al (Log kontrolü için)
-  const today = new Date().toISOString().split('T')[0] // YYYY-MM-DD
+  // 2. Aktif Challenge'ı Bul
+  let activeChallengeData = null
+  if (selectedId) {
+    activeChallengeData = userChallenges.find(uc => uc.challenge_id === selectedId)
+  }
+  
+  if (!activeChallengeData) {
+    activeChallengeData = userChallenges[0]
+  }
 
-  // 3. Bugün için günlük girilmiş mi?
+  // --- DÜZELTME BURADA ---
+  // TypeScript bazen challenges verisini dizi [] sanıyor. 
+  // Garantiye alıp "Diziyse ilkini al, değilse kendisini al" diyoruz.
+  const rawChallenge = activeChallengeData.challenges
+  const challenge = Array.isArray(rawChallenge) ? rawChallenge[0] : rawChallenge
+
+  // Veri hatası varsa patlamasın
+  if (!challenge) return <div className="p-10 pt-28 text-white">Veri yüklenemedi.</div>
+  // ----------------------
+
+  // 3. Bugünün tarihini al
+  const today = new Date().toISOString().split('T')[0]
+
+  // 4. Günlük kontrolü
   const { data: todayLog } = await supabase
     .from('daily_logs')
     .select('*')
     .eq('user_id', user.id)
-    .eq('challenge_id', challenge.id)
+    .eq('challenge_id', challenge.id) // Artık burası hata vermez
     .eq('log_date', today)
     .maybeSingle()
 
   return (
     <div className="min-h-screen text-white p-4 md:p-8 pt-24">
-      <div className="max-w-5xl mx-auto space-y-8">
+      <div className="max-w-5xl mx-auto space-y-6">
+
+        {/* --- YARIŞMA SEÇİCİ --- */}
+        <div>
+           <p className="text-xs text-gray-500 font-bold uppercase tracking-widest mb-3 ml-1">
+             CEPHELER ({userChallenges.length})
+           </p>
+           {/* Typescript kızmasın diye any ile geçiyoruz, selector içinde hallediyor zaten */}
+           <ChallengeSelector userChallenges={userChallenges as any} />
+        </div>
 
         {/* --- ÜST BİLGİ KARTI --- */}
-        <div className="flex flex-col md:flex-row justify-between items-end border-b border-gray-800 pb-6 gap-4">
+        <div className="flex flex-col md:flex-row justify-between items-end border-b border-gray-800 pb-6 gap-4 animate-in fade-in duration-500">
           <div>
             <span className="text-xs font-bold text-red-500 uppercase tracking-widest">AKTİF GÖREV</span>
-            <h1 className="text-3xl md:text-4xl font-black tracking-tighter mt-1">
+            <h1 className="text-3xl md:text-5xl font-black tracking-tighter mt-1">
               {challenge.title}
             </h1>
             <div className="flex gap-4 text-sm text-gray-500 mt-2 font-mono">
@@ -87,7 +119,7 @@ export default async function DashboardPage() {
         </div>
 
         {/* --- MUHASEBE DEFTERİ (FORM) --- */}
-        <form action={submitDailyLog} className="space-y-8">
+        <form action={submitDailyLog} className="space-y-8 animate-in slide-in-from-bottom-4 duration-500">
           <input type="hidden" name="challenge_id" value={challenge.id} />
 
           <div className="grid md:grid-cols-2 gap-6">
@@ -101,6 +133,7 @@ export default async function DashboardPage() {
               </label>
               <textarea 
                 name="omission"
+                key={challenge.id + '-omission'} 
                 defaultValue={todayLog?.sins_of_omission || ''}
                 placeholder="- 30 dakika kitap okumadım.&#10;- Sabah erken kalkamadım."
                 className="w-full h-40 bg-black/50 border border-gray-700 rounded-xl p-4 text-white focus:border-blue-500 outline-none transition resize-none placeholder:text-gray-700"
@@ -116,6 +149,7 @@ export default async function DashboardPage() {
               </label>
               <textarea 
                 name="commission"
+                key={challenge.id + '-commission'}
                 defaultValue={todayLog?.sins_of_commission || ''}
                 placeholder="- Diyeti bozdum, şeker yedim.&#10;- Gereksiz yere sosyal medyada 2 saat harcadım."
                 className="w-full h-40 bg-black/50 border border-gray-700 rounded-xl p-4 text-white focus:border-red-500 outline-none transition resize-none placeholder:text-gray-700"
@@ -134,6 +168,7 @@ export default async function DashboardPage() {
           </div>
 
         </form>
+
       </div>
     </div>
   )
