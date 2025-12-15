@@ -20,7 +20,42 @@
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: #000000;
+  color: #ffffff;
+}
+/* Navbar'ın yüksekliği kadar sayfayı aşağı it */
+/* --- MODERN SCROLLBAR (Chrome, Safari, Edge) --- */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #000000; 
+}
+
+::-webkit-scrollbar-thumb {
+  background: #333; 
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #dc2626; /* Hover olunca kırmızılaşır */
+}
+
+/* Firefox için */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #333 #000;
+}
+
+/* Seçim Rengi (Yazıyı seçince çıkan renk) */
+::selection {
+  background-color: #dc2626; /* Kırmızı */
+  color: #ffffff;
+}
+
+/* Genel Font İyileştirmesi (Daha keskin yazı) */
+body {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }

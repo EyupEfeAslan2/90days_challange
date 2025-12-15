@@ -31,24 +31,6 @@ export async function updateSession(request: NextRequest) {
     }
   )
 
-  // Kullanıcıyı kontrol et
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  // Eğer kullanıcı yoksa ve login sayfasında değilse, login'e at
-  // (Burayı şimdilik yorum satırı yapıyorum, istersen açabilirsin)
-  /*
-  if (
-    !user &&
-    !request.nextUrl.pathname.startsWith('/login') &&
-    !request.nextUrl.pathname.startsWith('/auth')
-  ) {
-    const url = request.nextUrl.clone()
-    url.pathname = '/login'
-    return NextResponse.redirect(url)
-  }
-  */
-
-  return supabaseResponse
+  // ÖNEMLI: supabase client ve response'u birlikte döndür
+  return { supabase, response: supabaseResponse }
 }

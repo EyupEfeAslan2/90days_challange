@@ -1,83 +1,109 @@
-'use client'
-
-import { Suspense } from 'react' // <--- 1. Suspense'i import ettik
+// Bu dosya app/login/page.tsx olmalı
+// Ve app/login/actions.ts dosyasından import etmeli
 import { login, signup } from './actions'
-import { useSearchParams } from 'next/navigation'
 
-// 2. Asıl işi yapan (ve URL parametrelerini okuyan) kısmı ayrı bir parçaya ayırdık
-function LoginContent() {
-  const searchParams = useSearchParams() // <-- Hata çıkaran kısım artık burada, Suspense korumasında.
-  const message = searchParams.get('message')
-  const error = searchParams.get('error')
-
-  return (
-    <div className="w-full max-w-md space-y-8 p-8 border border-gray-800 rounded-lg bg-gray-900/50 backdrop-blur-sm shadow-2xl">
-      
-      <div className="text-center space-y-2">
-        <h2 className="text-4xl font-bold text-red-600 tracking-tighter">Kontrol</h2>
-        <p className="text-gray-400 text-sm">90 Günlük İrade Savaşına Giriş</p>
-      </div>
-
-      {/* Başarı Mesajı Kutusu */}
-      {message && (
-        <div className="bg-green-900/30 border border-green-800 text-green-400 p-3 rounded text-sm text-center">
-          {message}
-        </div>
-      )}
-
-      {/* Hata Mesajı Kutusu */}
-      {error && (
-        <div className="bg-red-900/30 border border-red-800 text-red-400 p-3 rounded text-sm text-center">
-          Giriş başarısız. Bilgilerini kontrol et.
-        </div>
-      )}
-
-      <form className="space-y-6">
-        <div className="space-y-4">
-          <input
-            name="email"
-            type="email"
-            placeholder="Email Adresi"
-            required
-            className="w-full p-4 rounded bg-black/50 border border-gray-700 focus:border-red-600 outline-none transition text-white"
-          />
-          <input
-            name="password"
-            type="password"
-            placeholder="Şifre"
-            required
-            className="w-full p-4 rounded bg-black/50 border border-gray-700 focus:border-red-600 outline-none transition text-white"
-          />
-        </div>
-
-        <div className="flex flex-col gap-4 pt-2">
-          <button formAction={login} className="w-full bg-red-700 hover:bg-red-600 py-4 rounded font-bold text-lg transition shadow-lg shadow-red-900/20">
-            Giriş Yap
-          </button>
-          
-          <div className="relative flex py-2 items-center">
-              <div className="flex-grow border-t border-gray-700"></div>
-              <span className="flex-shrink mx-4 text-gray-500 text-xs">Hesabın yok mu?</span>
-              <div className="flex-grow border-t border-gray-700"></div>
-          </div>
-
-          <button formAction={signup} className="w-full border border-gray-600 hover:bg-gray-800 py-3 rounded font-bold transition text-gray-300">
-            Yeni Kayıt Oluştur
-          </button>
-        </div>
-      </form>
-      
-    </div>
-  )
-}
-
-// 3. Ana bileşen artık sadece bir "Kabuk" (Wrapper) görevi görüyor
 export default function LoginPage() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-black px-4 text-white">
-      <Suspense fallback={<div className="text-gray-400">Yükleniyor...</div>}>
-        <LoginContent />
-      </Suspense>
+    // fixed: Sayfayı viewport'a sabitle (Navbar'dan bağımsız)
+    // inset-0: top, right, bottom, left = 0 (Tam ekran)
+    // z-50: Navbar'ın üstünde görünsün
+    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden bg-black">
+      
+      {/* --- ARKA PLAN (MORPHEUS) --- */}
+      <div 
+        className="absolute inset-0 z-0"
+        style={{
+            backgroundImage: "url('/matrix-bg.png')",
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            backgroundRepeat: 'no-repeat',
+            filter: 'brightness(0.35) blur(2px)'
+        }}
+      />
+
+      {/* --- ORTA KUTU (FORM) --- */}
+      <div className="relative z-10 w-full max-w-md px-4">
+        
+        <div className="bg-black/70 backdrop-blur-xl border border-white/10 rounded-2xl p-8 shadow-2xl animate-in fade-in zoom-in duration-500">
+          
+          {/* Başlık */}
+          <div className="text-center mb-8 space-y-2">
+            <h1 className="text-4xl font-black text-white tracking-tighter drop-shadow-lg">
+              90<span className="text-red-600">DAYS</span>
+            </h1>
+            <p className="text-gray-300 text-sm font-medium">
+              İrade ve Disiplin Yönetimi
+            </p>
+          </div>
+
+          <form className="space-y-5">
+            
+            {/* Email */}
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-gray-400 uppercase tracking-widest ml-1">
+                E-Posta
+              </label>
+              <input
+                name="email"
+                type="email"
+                placeholder="ornek@mail.com"
+                required
+                className="w-full bg-white/5 border border-gray-600 focus:border-red-600 rounded-lg p-3 text-white placeholder:text-gray-600 focus:ring-1 focus:ring-red-600 outline-none transition-all"
+              />
+            </div>
+
+            {/* Şifre */}
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-gray-400 uppercase tracking-widest ml-1">
+                Şifre
+              </label>
+              <input
+                name="password"
+                type="password"
+                placeholder="••••••••"
+                required
+                className="w-full bg-white/5 border border-gray-600 focus:border-red-600 rounded-lg p-3 text-white placeholder:text-gray-600 focus:ring-1 focus:ring-red-600 outline-none transition-all"
+              />
+            </div>
+
+            {/* Butonlar */}
+            <div className="pt-6 grid gap-4">
+              
+              {/* KIRMIZI BUTON (Giriş) */}
+              <button 
+                formAction={login} 
+                className="w-full py-4 rounded-lg bg-red-700 hover:bg-red-600 text-white font-bold tracking-wide shadow-lg shadow-red-900/30 hover:shadow-red-900/50 transition-all transform hover:scale-[1.02]"
+              >
+                Giriş Yap
+              </button>
+
+              {/* ARA ÇİZGİ */}
+              <div className="relative flex items-center py-2">
+                <div className="flex-grow border-t border-gray-700" />
+                <span className="flex-shrink mx-4 text-gray-500 text-[10px] uppercase tracking-widest">
+                  veya
+                </span>
+                <div className="flex-grow border-t border-gray-700" />
+              </div>
+
+              {/* MAVİ/GRİ BUTON (Kayıt) */}
+              <button 
+                formAction={signup} 
+                className="w-full py-3 rounded-lg border border-gray-600 text-gray-300 font-bold hover:bg-white/10 hover:text-white hover:border-gray-400 transition-all text-sm"
+              >
+                Yeni Hesap Oluştur
+              </button>
+
+            </div>
+          </form>
+
+          {/* Alt Mesaj */}
+          <p className="mt-8 text-center text-xs text-gray-500 italic opacity-80">
+            "Sana sadece gerçeği vaat ediyorum, fazlasını değil."
+          </p>
+
+        </div>
+      </div>
     </div>
   )
 }

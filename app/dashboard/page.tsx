@@ -1,176 +1,140 @@
 import { createClient } from '@/utils/supabase/server'
-import { redirect } from 'next/navigation'
-import { signout } from '@/app/login/actions'
-import { logDailyStatus } from './actions'
+import { submitDailyLog } from './actions'
 import Link from 'next/link'
 
-export default async function Dashboard() {
+export default async function DashboardPage() {
   const supabase = await createClient()
-
-  // 1. Kullanıcı Kontrolü
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
 
-  // 2. Profil Kontrolü (Username yoksa Onboarding'e git)
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('username')
-    .eq('id', user.id)
-    .single()
-  
-  if (!profile?.username) {
-    redirect('/onboarding')
+  if (!user) {
+    return <div className="text-white p-10 pt-28">Giriş yapmalısın.</div>
   }
-  // Eğer kullanıcı adı yoksa, ayarlara gitmesi için uyarı gösterilebilir veya yönlendirilebilir.
-  // Şimdilik e-mail gösterelim eğer yoksa.
 
-  // 3. Tarih Hesapları
-  const today = new Date()
-  const todayISO = today.toISOString().split('T')[0]
+  // 1. Kullanıcının katıldığı EN SON yarışmayı çek (Tarihine bakmaksızın)
+  const { data: lastJoined } = await supabase
+    .from('user_challenges')
+    .select(`
+      challenge_id,
+      joined_at,
+      challenges (
+        id,
+        title,
+        description,
+        start_date,
+        end_date
+      )
+    `)
+    .eq('user_id', user.id)
+    .order('joined_at', { ascending: false }) // En son katıldığını en üste al
+    .limit(1)
+    .single()
 
-  // 4. Verileri Çek
-  const { data: todaysLog } = await supabase
+  const challenge = lastJoined?.challenges
+
+  // EĞER HİÇBİR YARIŞMAYA KATILMAMIŞSA:
+  if (!challenge) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center text-center p-4 pt-28">
+        <h1 className="text-3xl font-bold text-white mb-4">Henüz bir cephede değilsin.</h1>
+        <p className="text-gray-400 mb-8 max-w-md">
+          Veritabanında katıldığın bir yarışma bulunamadı.
+        </p>
+        <Link href="/" className="bg-red-600 text-white px-8 py-3 rounded-full font-bold hover:bg-red-700 transition hover:scale-105 shadow-lg shadow-red-900/20">
+          Meydan Okuma Seç
+        </Link>
+      </div>
+    )
+  }
+
+  // 2. Bugünün tarihini al (Log kontrolü için)
+  const today = new Date().toISOString().split('T')[0] // YYYY-MM-DD
+
+  // 3. Bugün için günlük girilmiş mi?
+  const { data: todayLog } = await supabase
     .from('daily_logs')
     .select('*')
     .eq('user_id', user.id)
-    .eq('created_at', todayISO)
-    .single()
-
-  const { data: allLogs } = await supabase
-    .from('daily_logs')
-    .select('*') // Tüm sütunları çek (is_successful, created_at)
-    .eq('user_id', user.id)
-    .order('created_at', { ascending: false }) // En yeniden eskiye
-
-  // 5. Seri Hesaplama
-  let currentStreak = 0
-  let checkDate = new Date(today)
-  const successfulDates = new Set(allLogs?.filter(l => l.is_successful).map(l => l.created_at) || [])
-
-  while (true) {
-    const checkString = checkDate.toISOString().split('T')[0]
-    if (successfulDates.has(checkString)) {
-      currentStreak++
-      checkDate.setDate(checkDate.getDate() - 1)
-    } else {
-      if (checkString === todayISO) {
-         checkDate.setDate(checkDate.getDate() - 1)
-         continue
-      }
-      break
-    }
-  }
-
-  const totalDays = allLogs?.filter(l => l.is_successful).length || 0
+    .eq('challenge_id', challenge.id)
+    .eq('log_date', today)
+    .maybeSingle()
 
   return (
-    <main className="min-h-screen bg-black text-white p-4">
-      <div className="max-w-4xl mx-auto">
-        
-        {/* Header */}
-<header className="flex justify-between items-center py-6 border-b border-gray-800">
-  <div className="flex items-center gap-6">
-    <Link href="/" className="text-2xl font-bold text-red-600 tracking-tighter">90 GÜN</Link>
-    
-    {/* YENİ EKLENEN BUTON */}
-    <Link href="/feed" className="text-sm font-bold text-gray-400 hover:text-white hover:underline decoration-red-600 underline-offset-4 transition">
-      Canlı Akış 🔴
-    </Link>
+    <div className="min-h-screen text-white p-4 md:p-8 pt-24">
+      <div className="max-w-5xl mx-auto space-y-8">
 
-    <Link href="/leaderboard" className="text-sm font-bold text-yellow-600 hover:text-yellow-400 hover:underline decoration-yellow-500 underline-offset-4 transition">
-  Sıralama 🏆
-    </Link>
-  </div>
-
-  <div className="flex items-center gap-4">
-    <Link href="/settings" className="text-gray-400 hover:text-white text-sm transition border-b border-transparent hover:border-gray-500">
-      {profile?.username ? `@${profile.username}` : user.email}
-    </Link>
-    <form action={signout}>
-      <button className="text-gray-400 hover:text-white text-sm transition">Çıkış</button>
-    </form>
-  </div>
-</header>
-
-        {/* Ana İçerik */}
-        <div className="mt-8 space-y-8">
-          <div className="text-center space-y-2">
-            <h1 className="text-4xl font-bold">Günlük Takip</h1>
-            <p className="text-gray-400">
-              {today.toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' })}
-            </p>
-          </div>
-
-          {/* İstatistikler */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="bg-gray-900/50 p-6 rounded-lg border border-gray-800">
-              <p className="text-gray-400 text-sm mb-1">Toplam Başarı</p>
-              <p className="text-3xl font-bold text-white">{totalDays} Gün</p>
-            </div>
-            
-            <div className="bg-gray-900/50 p-6 rounded-lg border border-gray-800">
-              <p className="text-gray-400 text-sm mb-1">Mevcut Seri</p>
-              <p className={`text-3xl font-bold ${currentStreak > 0 ? 'text-green-500' : 'text-gray-500'}`}>
-                {currentStreak} Gün
-              </p>
-            </div>
-            
-            <div className="bg-gray-900/50 p-6 rounded-lg border border-gray-800">
-              <p className="text-gray-400 text-sm mb-1">Hedef</p>
-              <p className="text-3xl font-bold text-red-600">90 Gün</p>
+        {/* --- ÜST BİLGİ KARTI --- */}
+        <div className="flex flex-col md:flex-row justify-between items-end border-b border-gray-800 pb-6 gap-4">
+          <div>
+            <span className="text-xs font-bold text-red-500 uppercase tracking-widest">AKTİF GÖREV</span>
+            <h1 className="text-3xl md:text-4xl font-black tracking-tighter mt-1">
+              {challenge.title}
+            </h1>
+            <div className="flex gap-4 text-sm text-gray-500 mt-2 font-mono">
+                <span>Başlangıç: {challenge.start_date}</span>
+                <span>Bitiş: {challenge.end_date}</span>
             </div>
           </div>
-
-          {/* Aksiyon Alanı */}
-          <div className="bg-gray-900/50 p-8 rounded-lg border border-gray-800 text-center space-y-4">
-            {todaysLog ? (
-              <div className="py-4">
-                {todaysLog.is_successful ? (
-                   <div>
-                     <h3 className="text-3xl font-bold text-green-500 mb-2">GÖREV TAMAMLANDI</h3>
-                     <p className="text-gray-400">Zincir devam ediyor.</p>
-                   </div>
-                ) : (
-                   <div>
-                     <h3 className="text-3xl font-bold text-red-600 mb-2">BAŞARISIZ</h3>
-                     <p className="text-gray-400">Seri bozuldu.</p>
-                   </div>
-                )}
-              </div>
-            ) : (
-              <>
-                <p className="text-gray-300">Bugün hedeflerini tamamladın mı?</p>
-                <form action={logDailyStatus} className="flex gap-4 justify-center">
-                  <button name="status" value="true" className="bg-green-700 hover:bg-green-600 text-white font-bold py-3 px-8 rounded-lg transition-all hover:scale-105">✓ Başarılı</button>
-                  <button name="status" value="false" className="bg-red-700 hover:bg-red-600 text-white font-bold py-3 px-8 rounded-lg transition-all hover:scale-105">✗ Başarısız</button>
-                </form>
-              </>
-            )}
-          </div>
-
-          {/* Geçmiş Listesi - ARTIK DOLU! */}
-          <div className="space-y-4">
-            <h2 className="text-2xl font-bold">Geçmiş Kayıtlar</h2>
-            <div className="space-y-2">
-              {allLogs && allLogs.length > 0 ? (
-                allLogs.map((log) => (
-                  <div key={log.id} className="flex justify-between items-center bg-gray-900/30 p-4 rounded border border-gray-800">
-                    <span className="text-gray-300">
-                      {new Date(log.created_at).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long' })}
-                    </span>
-                    <span className={log.is_successful ? 'text-green-500 font-bold' : 'text-red-500 font-bold'}>
-                      {log.is_successful ? 'Tamamlandı' : 'Başarısız'}
-                    </span>
-                  </div>
-                ))
-              ) : (
-                <div className="text-gray-500 text-sm">Henüz kayıt yok.</div>
-              )}
+          
+          {todayLog ? (
+            <div className="bg-green-900/20 border border-green-900 text-green-500 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 shadow-[0_0_15px_-5px_#22c55e]">
+              ✓ Rapor Verildi
             </div>
-          </div>
-
+          ) : (
+            <div className="bg-red-900/20 border border-red-900 text-red-500 px-4 py-2 rounded-lg text-sm font-bold animate-pulse shadow-[0_0_15px_-5px_#dc2626]">
+              ! Rapor Bekleniyor
+            </div>
+          )}
         </div>
+
+        {/* --- MUHASEBE DEFTERİ (FORM) --- */}
+        <form action={submitDailyLog} className="space-y-8">
+          <input type="hidden" name="challenge_id" value={challenge.id} />
+
+          <div className="grid md:grid-cols-2 gap-6">
+            
+            {/* SOL: İHMALLER */}
+            <div className="group relative bg-gray-900/30 border border-gray-800 rounded-2xl p-6 hover:border-blue-900/50 transition-colors duration-300">
+              <div className="absolute top-0 left-0 w-1 h-full bg-blue-600/50 rounded-l-2xl group-hover:bg-blue-500 transition-colors"></div>
+              
+              <label className="block text-lg font-bold text-blue-100 mb-2">
+                İhmallerim <span className="text-gray-500 text-sm font-normal">(Yapmadıklarım)</span>
+              </label>
+              <textarea 
+                name="omission"
+                defaultValue={todayLog?.sins_of_omission || ''}
+                placeholder="- 30 dakika kitap okumadım.&#10;- Sabah erken kalkamadım."
+                className="w-full h-40 bg-black/50 border border-gray-700 rounded-xl p-4 text-white focus:border-blue-500 outline-none transition resize-none placeholder:text-gray-700"
+              />
+            </div>
+
+            {/* SAĞ: GÜNAHLAR */}
+            <div className="group relative bg-gray-900/30 border border-gray-800 rounded-2xl p-6 hover:border-red-900/50 transition-colors duration-300">
+              <div className="absolute top-0 right-0 w-1 h-full bg-red-600/50 rounded-r-2xl group-hover:bg-red-500 transition-colors"></div>
+              
+              <label className="block text-lg font-bold text-red-100 mb-2">
+                Hatalarım <span className="text-gray-500 text-sm font-normal">(Yaptıklarım)</span>
+              </label>
+              <textarea 
+                name="commission"
+                defaultValue={todayLog?.sins_of_commission || ''}
+                placeholder="- Diyeti bozdum, şeker yedim.&#10;- Gereksiz yere sosyal medyada 2 saat harcadım."
+                className="w-full h-40 bg-black/50 border border-gray-700 rounded-xl p-4 text-white focus:border-red-500 outline-none transition resize-none placeholder:text-gray-700"
+              />
+            </div>
+
+          </div>
+
+          <div className="flex justify-end pt-4">
+            <button 
+              type="submit"
+              className="bg-white text-black px-8 py-4 rounded-xl font-bold text-lg hover:bg-gray-200 hover:scale-[1.02] transition-all shadow-lg shadow-white/10"
+            >
+              {todayLog ? 'Raporu Güncelle 📝' : 'Günü Tamamla ve Kaydet ✅'}
+            </button>
+          </div>
+
+        </form>
       </div>
-    </main>
+    </div>
   )
 }

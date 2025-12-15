@@ -29,7 +29,7 @@ export async function login(formData: FormData) {
 
   // Başarılıysa anasayfaya yönlendir
   revalidatePath('/', 'layout')
-  redirect('/')
+  redirect('/dashboard')
 }
 
 export async function signup(formData: FormData) {

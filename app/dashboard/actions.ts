@@ -2,31 +2,47 @@
 
 import { createClient } from '@/utils/supabase/server'
 import { revalidatePath } from 'next/cache'
+import { redirect } from 'next/navigation'
 
-export async function logDailyStatus(formData: FormData) {
+export async function submitDailyLog(formData: FormData) {
   const supabase = await createClient()
 
   // 1. Kullanıcıyı al
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return;
+  if (!user) {
+    return redirect('/dashboard?error=unauthorized')
+  }
 
-  // 2. Formdan veriyi al (true mu false mu?)
-  const status = formData.get('status') === 'true'
+  // 2. Formdan verileri çek
+  const challenge_id = formData.get('challenge_id') as string
+  const omission = formData.get('omission') as string // Yapmam gerekenler
+  const commission = formData.get('commission') as string // Yapmamam gerekenler
 
-  // 3. Veritabanına yaz
+  // 3. Veritabanına "Upsert" yap (Varsa güncelle, yoksa ekle)
+  // user_id, challenge_id ve log_date (bugün) kombinasyonu unique olduğu için
+  // aynı gün içinde tekrar basarsa günceller.
   const { error } = await supabase
     .from('daily_logs')
-    .insert({
+    .upsert({
       user_id: user.id,
-      is_successful: status,
-      created_at: new Date().toISOString() // Bugünün tarihi
+      challenge_id: challenge_id,
+      log_date: new Date().toISOString().split('T')[0], // YYYY-MM-DD
+      sins_of_omission: omission,
+      sins_of_commission: commission,
+      is_completed: true // Günlük girildiyse o gün tamamlanmış sayılır
+    }, {
+      onConflict: 'user_id, challenge_id, log_date' // Çakışma kuralı
     })
 
   if (error) {
-    console.error('Kayıt hatası:', error)
-    // Eğer "unique constraint" hatasıysa kullanıcı zaten bugün girmiştir.
+    console.error('Günlük hatası:', error)
+    // Hata varsa URL'ye error parametresiyle dön
+    return redirect('/dashboard?error=failed')
   }
 
-  // 4. Sayfayı yenile ki butonlar gitsin, yerine sonuç gelsin
+  // Başarılıysa önbelleği temizle
   revalidatePath('/dashboard')
+  
+  // URL'ye 'message=saved' ekleyerek yönlendir (ToastWatcher bunu yakalayacak)
+  redirect('/dashboard?message=saved')
 }
