@@ -11,9 +11,6 @@ export default function Navbar({ user }: { user: User | null }) {
   const [isScrolled, setIsScrolled] = useState(false)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
 
-  // Hide navbar on login/signup pages
-  if (pathname === '/login' || pathname === '/signup' || pathname === '/onboarding') return null
-
   // Scroll detection for backdrop blur effect
   useEffect(() => {
     const handleScroll = () => {
@@ -22,6 +19,13 @@ export default function Navbar({ user }: { user: User | null }) {
     window.addEventListener('scroll', handleScroll)
     return () => window.removeEventListener('scroll', handleScroll)
   }, [])
+
+  // Hide navbar on specific pages (early return AFTER all hooks)
+  const shouldHideNavbar = pathname === '/login' || pathname === '/signup' || pathname === '/onboarding'
+
+  if (shouldHideNavbar) {
+    return null
+  }
 
   return (
     <>
