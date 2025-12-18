@@ -123,18 +123,6 @@ export default async function OnboardingPage() {
   // Redirect if not authenticated
   if (!user) redirect('/login')
 
-  // Check if user already has a username
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('username')
-    .eq('id', user.id)
-    .single()
-
-  // If username exists, redirect to dashboard
-  if (profile?.username) {
-    redirect('/dashboard')
-  }
-
   return (
     <div className="min-h-screen bg-black flex flex-col items-center justify-center p-4 text-white relative overflow-hidden">
       

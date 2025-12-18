@@ -1,241 +1,207 @@
 import { createClient } from '@/utils/supabase/server'
-import ChallengeList from '@/components/ChallengeList'
-import { Suspense } from 'react'
 import Link from 'next/link'
+import { deleteChallenge } from './actions'
+import DeleteButton from '@/components/DeleteButton' // <-- Senin yaptığın o şık buton
 
-// Types
-interface Challenge {
-  id: string
-  title: string
-  description: string | null
-  start_date: string
-  end_date: string
-  created_at: string
-}
-
-interface User {
-  id: string
-  email?: string
-}
-
-// Sub-components
-const PageHeader = ({ user }: { user: User | null }) => {
-  const greeting = user 
-    ? 'Hoş geldin, asker. Bugün hangi cepheye gidiyorsun?' 
-    : 'Sınırlarını zorla, iradeni test et. 90 günlük dönüşüme hazır mısın?'
+// --- KART BİLEŞENİ ---
+function ChallengeCard({ challenge, userId, statusLabel, statusColor }: any) {
+  // Bu challenge'ı ben mi yarattım?
+  const isOwner = userId === challenge.created_by
 
   return (
-    <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 border-b border-gray-800 pb-8 animate-in fade-in slide-in-from-top duration-700">
-      <div className="space-y-3">
-        <div className="flex items-center gap-3">
-          <div className="h-1 w-8 bg-gradient-to-r from-red-600 to-transparent rounded-full" />
-          <h1 className="text-4xl md:text-6xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-white via-gray-200 to-gray-500">
-            MEYDAN <span className="text-red-600 bg-clip-text bg-gradient-to-r from-red-600 to-red-500">OKU</span>
-          </h1>
-        </div>
-        <p className="text-gray-400 text-sm md:text-base max-w-lg leading-relaxed">
-          {greeting}
-        </p>
-      </div>
+    <div className="group relative bg-[#0a0a0a] border border-gray-800 p-6 rounded-2xl hover:border-gray-600 transition-all duration-300 flex flex-col justify-between h-full hover:-translate-y-1 hover:shadow-2xl">
       
-      {user && (
-        <div className="flex items-center gap-3 animate-in fade-in slide-in-from-right duration-700 delay-200">
-          <Link
-            href="/dashboard"
-            className="group flex items-center gap-2 px-4 py-2 bg-gray-900 border border-gray-800 rounded-lg hover:border-red-600 hover:bg-gray-950 transition-all"
-          >
-            <svg className="w-5 h-5 text-gray-400 group-hover:text-red-500 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
-            </svg>
-            <span className="text-sm font-bold text-gray-300 group-hover:text-white transition-colors">
-              Dashboard
-            </span>
-          </Link>
-          
-          <Link
-            href="/feed"
-            className="group flex items-center gap-2 px-4 py-2 bg-gray-900 border border-gray-800 rounded-lg hover:border-green-600 hover:bg-gray-950 transition-all"
-          >
-            <div className="relative">
-              <svg className="w-5 h-5 text-gray-400 group-hover:text-green-500 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-              </svg>
-              <div className="absolute -top-1 -right-1 w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-            </div>
-            <span className="text-sm font-bold text-gray-300 group-hover:text-white transition-colors">
-              Canlı Akış
-            </span>
-          </Link>
+      {/* Arkaplan Işıltısı */}
+      <div className="absolute inset-0 bg-gradient-to-b from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity rounded-2xl pointer-events-none" />
+
+      {/* SİLME BUTONU (Sadece Sahibi Görür) */}
+      {isOwner && (
+        <div className="absolute top-4 right-4 z-20 opacity-0 group-hover:opacity-100 transition-opacity">
+          <DeleteButton 
+            onDelete={async () => {
+               'use server'
+               await deleteChallenge(challenge.id)
+            }}
+            title="Cepheyi Sil"
+            className="bg-black/50 text-red-500 backdrop-blur-md hover:bg-red-900/50"
+          />
         </div>
       )}
+
+      <div>
+        {/* Durum Etiketi */}
+        <div className={`inline-block px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest mb-4 border ${statusColor}`}>
+           {statusLabel}
+        </div>
+
+        <h3 className="text-2xl font-bold text-white mb-3 group-hover:text-red-500 transition-colors">
+            {challenge.title}
+        </h3>
+        
+        <p className="text-gray-400 text-sm line-clamp-2 mb-6 leading-relaxed">
+          {challenge.description || 'Bu cephe için henüz bir açıklama girilmedi.'}
+        </p>
+        
+        <div className="flex items-center gap-4 text-xs font-mono text-gray-500 mb-6 border-t border-gray-900 pt-4">
+          <div className="flex flex-col">
+              <span className="text-[10px] uppercase tracking-wide text-gray-600">BAŞLANGIÇ</span>
+              <span className="text-white">{new Date(challenge.start_date).toLocaleDateString('tr-TR')}</span>
+          </div>
+          <div className="w-[1px] h-8 bg-gray-800"></div>
+          <div className="flex flex-col">
+              <span className="text-[10px] uppercase tracking-wide text-gray-600">BİTİŞ</span>
+              <span className="text-white">{new Date(challenge.end_date).toLocaleDateString('tr-TR')}</span>
+          </div>
+        </div>
+      </div>
+
+      <Link 
+        href={`/dashboard?id=${challenge.id}`}
+        className="relative w-full block text-center bg-white text-black py-4 rounded-xl font-bold text-sm hover:bg-gray-200 transition-transform active:scale-95 uppercase tracking-wide"
+      >
+        CEPHEYE KATIL
+      </Link>
     </div>
   )
 }
 
-const StatsBar = ({ totalChallenges }: { totalChallenges: number }) => (
-  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 animate-in fade-in slide-in-from-bottom duration-700 delay-200">
-    <div className="bg-gradient-to-br from-gray-900 to-black border border-gray-800 rounded-xl p-6 hover:border-gray-700 transition-all group">
-      <div className="flex items-center gap-4">
-        <div className="w-12 h-12 bg-red-600/10 rounded-lg flex items-center justify-center group-hover:bg-red-600/20 transition-colors">
-          <svg className="w-6 h-6 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-          </svg>
-        </div>
-        <div>
-          <div className="text-3xl font-black text-white">{totalChallenges}</div>
-          <div className="text-xs text-gray-500 uppercase tracking-wider">Aktif Cephe</div>
-        </div>
-      </div>
-    </div>
-
-    <div className="bg-gradient-to-br from-gray-900 to-black border border-gray-800 rounded-xl p-6 hover:border-gray-700 transition-all group">
-      <div className="flex items-center gap-4">
-        <div className="w-12 h-12 bg-green-600/10 rounded-lg flex items-center justify-center group-hover:bg-green-600/20 transition-colors">
-          <svg className="w-6 h-6 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-          </svg>
-        </div>
-        <div>
-          <div className="text-3xl font-black text-white">1.2K</div>
-          <div className="text-xs text-gray-500 uppercase tracking-wider">Aktif Savaşçı</div>
-        </div>
-      </div>
-    </div>
-
-    <div className="bg-gradient-to-br from-gray-900 to-black border border-gray-800 rounded-xl p-6 hover:border-gray-700 transition-all group">
-      <div className="flex items-center gap-4">
-        <div className="w-12 h-12 bg-yellow-600/10 rounded-lg flex items-center justify-center group-hover:bg-yellow-600/20 transition-colors">
-          <svg className="w-6 h-6 text-yellow-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
-          </svg>
-        </div>
-        <div>
-          <div className="text-3xl font-black text-white">85%</div>
-          <div className="text-xs text-gray-500 uppercase tracking-wider">Başarı Oranı</div>
-        </div>
-      </div>
-    </div>
-  </div>
-)
-
-const EmptyState = ({ user }: { user: User | null }) => (
-  <div className="text-center py-20 px-4 space-y-6 animate-in fade-in zoom-in duration-700">
-    <div className="w-20 h-20 mx-auto bg-gray-900 rounded-full flex items-center justify-center border border-gray-800">
-      <svg className="w-10 h-10 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-      </svg>
-    </div>
-    <div>
-      <h3 className="text-2xl font-bold text-gray-300 mb-3">
-        Henüz Aktif Cephe Yok
-      </h3>
-      <p className="text-gray-500 text-sm max-w-md mx-auto">
-        {user 
-          ? 'Yakında yeni görevler eklenecek. Dashboard\'tan mevcut görevlerini kontrol edebilirsin.'
-          : 'Şu anda aktif görev bulunmuyor. Yeni görevler için takipte kal!'}
-      </p>
-    </div>
-  </div>
-)
-
-const ChallengeListSkeleton = () => (
-  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-    {[...Array(4)].map((_, i) => (
-      <div key={i} className="bg-gray-900 border border-gray-800 rounded-xl p-6 animate-pulse">
-        <div className="space-y-4">
-          <div className="h-6 bg-gray-800 rounded w-3/4" />
-          <div className="space-y-2">
-            <div className="h-4 bg-gray-800 rounded" />
-            <div className="h-4 bg-gray-800 rounded w-5/6" />
-          </div>
-          <div className="flex gap-2">
-            <div className="h-8 bg-gray-800 rounded w-20" />
-            <div className="h-8 bg-gray-800 rounded w-24" />
-          </div>
-        </div>
-      </div>
-    ))}
-  </div>
-)
-
-// Main Component
-export default async function HomePage() {
+// --- ANA SAYFA ---
+export default async function Home() {
   const supabase = await createClient()
-
-  // Check for authenticated user
   const { data: { user } } = await supabase.auth.getUser()
+  const today = new Date().toISOString().split('T')[0]
 
-  // Fetch all challenges
-  const { data: challenges, error } = await supabase
+  // Tüm Challenge'ları çek
+  const { data: allChallenges, error } = await supabase
     .from('challenges')
     .select('*')
     .order('start_date', { ascending: false })
 
-  if (error) {
-    console.error('Error fetching challenges:', error)
-    return (
-      <main className="min-h-screen bg-black text-white flex items-center justify-center p-4">
-        <div className="text-center space-y-4">
-          <div className="w-16 h-16 mx-auto bg-red-900/20 rounded-full flex items-center justify-center">
-            <svg className="w-8 h-8 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          </div>
-          <h2 className="text-xl font-bold text-red-500">Veri Yükleme Hatası</h2>
-          <p className="text-gray-400 text-sm">Lütfen sayfayı yenileyin veya daha sonra tekrar deneyin.</p>
-        </div>
-      </main>
-    )
-  }
+  if (error) return <div className="text-red-500 pt-32 text-center">Bağlantı Hatası: {error.message}</div>
 
-  const typedChallenges = challenges as Challenge[] || []
+  // --- FİLTRELEME MANTIĞI ---
+  // 1. Gizlilik: Herkese açıksa VEYA Sahibi bensem göster
+  const visibleChallenges = allChallenges?.filter(c => c.is_public || (user && c.created_by === user.id)) || []
+
+  // 2. Zaman: Bugünün tarihine göre ayır
+  const activeChallenges = visibleChallenges.filter(c => c.start_date <= today && c.end_date >= today)
+  const upcomingChallenges = visibleChallenges.filter(c => c.start_date > today)
+  const pastChallenges = visibleChallenges.filter(c => c.end_date < today)
 
   return (
-    <main className="min-h-screen bg-black text-white p-4 md:p-8 pt-24 pb-20 relative overflow-hidden">
+    <main className="min-h-screen bg-black text-white p-4 md:p-8 pt-32 pb-20 selection:bg-red-900 selection:text-white">
       
-      {/* Background Effects */}
-      <div className="absolute inset-0 bg-gradient-to-b from-red-950/5 via-black to-black pointer-events-none" />
-      <div className="absolute top-0 right-1/4 w-96 h-96 bg-red-600/5 rounded-full blur-3xl pointer-events-none" />
-      
-      <div className="relative z-10 max-w-6xl mx-auto space-y-8">
+      {/* Arkaplan Ambiyansı */}
+      <div className="fixed top-0 left-0 w-full h-full overflow-hidden -z-10 pointer-events-none">
+          <div className="absolute top-[-10%] right-[-5%] w-[500px] h-[500px] bg-red-900/10 rounded-full blur-[120px]"></div>
+          <div className="absolute bottom-[-10%] left-[-5%] w-[600px] h-[600px] bg-blue-900/5 rounded-full blur-[150px]"></div>
+      </div>
+
+      <div className="max-w-6xl mx-auto space-y-12">
         
-        {/* Page Header */}
-        <PageHeader user={user} />
-
-        {/* Stats Bar */}
-        {typedChallenges.length > 0 && (
-          <StatsBar totalChallenges={typedChallenges.length} />
-        )}
-
-        {/* Section Title */}
-        {typedChallenges.length > 0 && (
-          <div className="flex items-center justify-between animate-in fade-in slide-in-from-left duration-700 delay-300">
-            <div>
-              <h2 className="text-2xl font-bold text-white">Aktif Görevler</h2>
-              <p className="text-sm text-gray-500 mt-1">Meydan okunan cepheleri keşfet</p>
+        {/* HERO (BAŞLIK) */}
+        <div className="flex flex-col md:flex-row justify-between items-end gap-6 border-b border-gray-800 pb-10">
+            <div className="space-y-4">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-red-900/20 border border-red-900/30 text-red-500 text-xs font-bold uppercase tracking-widest animate-pulse">
+                    <span className="w-2 h-2 rounded-full bg-red-500"></span>
+                    Sistem Çevrimiçi
+                </div>
+                <h1 className="text-5xl md:text-7xl font-black tracking-tighter text-white leading-[0.9]">
+                    MEYDAN <br/> <span className="text-transparent bg-clip-text bg-gradient-to-r from-red-600 to-red-800">OKU.</span>
+                </h1>
+                <p className="text-gray-400 max-w-md text-lg leading-relaxed">
+                    Konfor alanını terk et. İradeni test edecek bir cephe seç ve 90 gün boyunca savaş.
+                </p>
             </div>
-            <Link
-              href="/leaderboard"
-              className="group flex items-center gap-2 px-4 py-2 bg-gray-900 border border-gray-800 rounded-lg hover:border-yellow-600 hover:bg-gray-950 transition-all"
-            >
-              <svg className="w-5 h-5 text-gray-400 group-hover:text-yellow-500 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
-              </svg>
-              <span className="text-sm font-bold text-gray-300 group-hover:text-white transition-colors">
-                Liderlik
-              </span>
-            </Link>
-          </div>
+            
+            {user && (
+              <Link 
+                href="/create-challenge" 
+                className="group flex items-center gap-3 bg-white text-black px-8 py-4 rounded-xl font-bold text-sm hover:bg-gray-200 transition shadow-[0_0_30px_-10px_rgba(255,255,255,0.3)]"
+              >
+                <span className="text-xl group-hover:rotate-90 transition-transform duration-300">+</span> 
+                YENİ CEPHE OLUŞTUR
+              </Link>
+            )}
+        </div>
+
+        {/* 1. AKTİF OPERASYONLAR (Yeşil) */}
+        {activeChallenges.length > 0 && (
+            <section className="space-y-6 animate-in fade-in slide-in-from-bottom duration-700">
+                <div className="flex items-center gap-3">
+                    <h2 className="text-2xl font-bold tracking-tight">AKTİF OPERASYONLAR</h2>
+                    <div className="h-[1px] bg-gray-800 flex-1"></div>
+                    <span className="text-xs font-mono text-gray-500">{activeChallenges.length} ADET</span>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {activeChallenges.map(c => (
+                        <ChallengeCard 
+                            key={c.id} 
+                            challenge={c} 
+                            userId={user?.id}
+                            statusLabel="● DEVAM EDİYOR"
+                            statusColor="bg-green-900/20 border-green-900/50 text-green-500"
+                        />
+                    ))}
+                </div>
+            </section>
         )}
 
-        {/* Challenge List */}
-        <Suspense fallback={<ChallengeListSkeleton />}>
-          {typedChallenges.length > 0 ? (
-            <ChallengeList challenges={typedChallenges} />
-          ) : (
-            <EmptyState user={user} />
-          )}
-        </Suspense>
+        {/* 2. HAZIRLIK AŞAMASI (Sarı - Gelecek) */}
+        {upcomingChallenges.length > 0 && (
+            <section className="space-y-6 animate-in fade-in slide-in-from-bottom duration-700 delay-100">
+                <div className="flex items-center gap-3">
+                    <h2 className="text-2xl font-bold tracking-tight text-gray-300">HAZIRLIK AŞAMASI</h2>
+                    <div className="h-[1px] bg-gray-800 flex-1"></div>
+                    <span className="text-xs font-mono text-gray-500">{upcomingChallenges.length} ADET</span>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {upcomingChallenges.map(c => (
+                        <ChallengeCard 
+                            key={c.id} 
+                            challenge={c} 
+                            userId={user?.id}
+                            statusLabel="⏳ YAKINDA"
+                            statusColor="bg-yellow-900/20 border-yellow-900/50 text-yellow-500"
+                        />
+                    ))}
+                </div>
+            </section>
+        )}
+
+        {/* 3. ARŞİV (Gri - Bitmiş) */}
+        {pastChallenges.length > 0 && (
+            <section className="space-y-6 opacity-60 hover:opacity-100 transition-opacity duration-500">
+                <div className="flex items-center gap-3">
+                    <h2 className="text-2xl font-bold tracking-tight text-gray-500">ARŞİV</h2>
+                    <div className="h-[1px] bg-gray-800 flex-1"></div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {pastChallenges.map(c => (
+                        <ChallengeCard 
+                            key={c.id} 
+                            challenge={c} 
+                            userId={user?.id}
+                            statusLabel="BİTTİ"
+                            statusColor="bg-gray-800 border-gray-700 text-gray-400"
+                        />
+                    ))}
+                </div>
+            </section>
+        )}
+
+        {/* BOŞ DURUM */}
+        {visibleChallenges.length === 0 && (
+            <div className="py-20 text-center border border-dashed border-gray-800 rounded-3xl bg-gray-900/20">
+                <h3 className="text-2xl font-bold text-white mb-2">Sessizlik Hakim</h3>
+                <p className="text-gray-500 mb-6">Henüz açılmış bir cephe yok veya sana uygun görev bulunamadı.</p>
+                {user && (
+                    <Link href="/create-challenge" className="text-red-500 font-bold hover:underline">
+                        İlk Cepheyi Sen Yarat →
+                    </Link>
+                )}
+            </div>
+        )}
 
       </div>
     </main>

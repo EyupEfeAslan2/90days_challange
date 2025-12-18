@@ -1,12 +1,26 @@
+// components/ToastWatcher.tsx
 'use client'
 
 import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
-// Toast Message Configurations
-const TOAST_MESSAGES = {
-  // Success messages
+// Types
+type ToastType = 'message' | 'error' | 'info' | 'warning'
+
+type ToastConfig = {
+  title: string
+  description: string
+  duration: number
+}
+
+type ToastMessages = {
+  [key: string]: ToastConfig
+}
+
+// Constants
+const TOAST_MESSAGES: ToastMessages = {
+  // Success
   saved: {
     title: '✅ Rapor Başarıyla İşlendi',
     description: 'Saha verileri güncellendi komutanım.',
@@ -33,7 +47,7 @@ const TOAST_MESSAGES = {
     duration: 5000,
   },
   
-  // Error messages
+  // Errors
   failed: {
     title: '❌ İşlem Başarısız',
     description: 'Sunucu bağlantısında sorun var. Lütfen tekrar deneyin.',
@@ -59,19 +73,18 @@ const TOAST_MESSAGES = {
     description: 'Bu işlem zaten gerçekleştirilmiş.',
     duration: 3000,
   },
-} as const
+}
 
-type ToastMessageKey = keyof typeof TOAST_MESSAGES
+const CLEANUP_DELAY = 100
+const MAX_PROCESSED_KEYS = 10
 
 // Utility Functions
-const getToastConfig = (key: string, type: 'message' | 'error') => {
-  const config = TOAST_MESSAGES[key as ToastMessageKey]
+function getToastConfig(key: string, type: ToastType): ToastConfig {
+  const config = TOAST_MESSAGES[key]
   
-  if (config) {
-    return config
-  }
+  if (config) return config
 
-  // Fallback for custom messages
+  // Fallback
   return {
     title: type === 'error' ? '❌ Hata' : '✅ Başarılı',
     description: key,
@@ -79,7 +92,7 @@ const getToastConfig = (key: string, type: 'message' | 'error') => {
   }
 }
 
-const cleanUrl = (pathname: string, searchParams: URLSearchParams) => {
+function cleanUrl(pathname: string, searchParams: URLSearchParams): string {
   const params = new URLSearchParams(searchParams)
   params.delete('message')
   params.delete('error')
@@ -88,6 +101,16 @@ const cleanUrl = (pathname: string, searchParams: URLSearchParams) => {
   
   const queryString = params.toString()
   return queryString ? `${pathname}?${queryString}` : pathname
+}
+
+function createNotificationKey(
+  message: string | null,
+  error: string | null,
+  info: string | null,
+  warning: string | null,
+  pathname: string
+): string {
+  return `${message}-${error}-${info}-${warning}-${pathname}`
 }
 
 // Main Component
@@ -104,22 +127,17 @@ export default function ToastWatcher() {
   }, [])
 
   useEffect(() => {
-    // Only run on client after mount
     if (!mounted) return
 
-    // Get notification parameters
     const message = searchParams.get('message')
     const error = searchParams.get('error')
     const info = searchParams.get('info')
     const warning = searchParams.get('warning')
 
-    // Create unique key for this notification
-    const notificationKey = `${message}-${error}-${info}-${warning}-${pathname}`
+    const notificationKey = createNotificationKey(message, error, info, warning, pathname)
 
-    // Prevent duplicate notifications
-    if (processedRef.current.has(notificationKey)) {
-      return
-    }
+    // Prevent duplicates
+    if (processedRef.current.has(notificationKey)) return
 
     let hasShownToast = false
 
@@ -173,30 +191,29 @@ export default function ToastWatcher() {
       hasShownToast = true
     }
 
-    // Clean URL and mark as processed
+    // Clean URL
     if (hasShownToast) {
       processedRef.current.add(notificationKey)
       
-      // Clean URL after a short delay
       setTimeout(() => {
         const cleanedUrl = cleanUrl(pathname, searchParams)
         router.replace(cleanedUrl, { scroll: false })
         
-        // Clean up old processed keys (keep last 10)
-        if (processedRef.current.size > 10) {
+        // Cleanup old keys
+        if (processedRef.current.size > MAX_PROCESSED_KEYS) {
           const keysArray = Array.from(processedRef.current)
-          processedRef.current = new Set(keysArray.slice(-10))
+          processedRef.current = new Set(keysArray.slice(-MAX_PROCESSED_KEYS))
         }
-      }, 100)
+      }, CLEANUP_DELAY)
     }
   }, [searchParams, router, pathname, mounted])
 
   return null
 }
 
-// Export utility for manually triggering toasts
+// Export utility for manual toasts
 export const showToast = {
-  success: (key: ToastMessageKey | string) => {
+  success: (key: string) => {
     const config = getToastConfig(key, 'message')
     toast.success(config.title, {
       description: config.description,
@@ -205,7 +222,7 @@ export const showToast = {
     })
   },
   
-  error: (key: ToastMessageKey | string) => {
+  error: (key: string) => {
     const config = getToastConfig(key, 'error')
     toast.error(config.title, {
       description: config.description,
@@ -214,17 +231,17 @@ export const showToast = {
     })
   },
   
-  info: (message: string, description?: string) => {
+  info: (message: string, description: string = 'Bilgilendirme') => {
     toast.info(message, {
-      description: description || 'Bilgilendirme',
+      description,
       duration: 4000,
       icon: 'ℹ️',
     })
   },
   
-  warning: (message: string, description?: string) => {
+  warning: (message: string, description: string = 'Dikkat') => {
     toast.warning(message, {
-      description: description || 'Dikkat',
+      description,
       duration: 4000,
       icon: '⚠️',
     })
@@ -239,12 +256,12 @@ export const showToast = {
   },
 }
 
-// TypeScript helper for redirect with toast
-export const redirectWithToast = (
+// Helper for redirect with toast
+export function redirectWithToast(
   url: string,
-  type: 'message' | 'error' | 'info' | 'warning',
+  type: ToastType,
   value: string
-): string => {
+): string {
   const params = new URLSearchParams()
   params.set(type, value)
   return `${url}?${params.toString()}`

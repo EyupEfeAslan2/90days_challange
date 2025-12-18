@@ -2,6 +2,7 @@ import { createClient } from '@/utils/supabase/server'
 import { submitDailyLog } from './actions'
 import Link from 'next/link'
 import { Suspense } from 'react'
+import { redirect } from 'next/navigation'
 
 // --- TİPLER ---
 interface Challenge {
@@ -10,12 +11,6 @@ interface Challenge {
   description: string | null
   start_date: string
   end_date: string
-}
-
-interface UserChallenge {
-  challenge_id: string
-  joined_at: string
-  challenges: Challenge | Challenge[]
 }
 
 interface DailyLog {
@@ -149,7 +144,7 @@ const DailyLogForm = ({ challenge, todayLog }: { challenge: Challenge; todayLog:
   </div>
 )
 
-// --- ANA SAYFA ---
+// --- ANA SAYFA (Tek ve Gerçek Olan) ---
 export default async function DashboardPage({ searchParams }: { searchParams: Promise<{ id?: string }> }) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -157,6 +152,18 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   if (!user) {
     return <div className="min-h-screen flex items-center justify-center text-white">Giriş Yapmalısın</div>
   }
+
+  // --- ONBOARDING KONTROLÜ (ZORUNLU YÖNLENDİRME) ---
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('username')
+    .eq('id', user.id)
+    .single()
+
+  if (!profile?.username) {
+    redirect('/onboarding')
+  }
+  // --------------------------------------------------
 
   const params = await searchParams
   const selectedId = params.id
@@ -186,6 +193,9 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const challenge = normalizeChallenge(activeData.challenges)
   if (!challenge) return <div>Veri Hatası</div>
 
+  // --- GELECEK KORUMASI ---
+  const isFuture = challenge.start_date > today
+
   // Paralel Veri Çekme
   const [
     { count: totalParticipants },
@@ -200,13 +210,14 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   ])
 
   return (
-    // DÜZELTME: pt-24 yerine pt-32 yaptık.
     <div className="min-h-screen text-white p-4 md:p-8 pt-32 pb-20">
       <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8">
+        
+        {/* SOL KOLON */}
         <aside className="lg:col-span-4 space-y-6">
           <div className="flex items-center justify-between">
             <h2 className="text-xs font-bold text-gray-500 uppercase tracking-widest">GÖREV DOSYALARI</h2>
-            <Link href="/" className="text-[10px] bg-white/10 px-2 py-1 rounded text-gray-300 hover:bg-white/20 transition">+ YENİ EKLE</Link>
+            <Link href="/" className="text-[10px] bg-white/10 px-2 py-1 rounded text-gray-300 hover:bg-white/20 transition">+ YENİ CEPHE</Link>
           </div>
           <nav className="flex flex-col gap-3">
             {userChallenges.map((uc) => {
@@ -218,9 +229,26 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
           <StatsPanel myLogCount={myLogCount ?? 0} totalParticipants={totalParticipants ?? 0} activeToday={activeToday ?? 0} />
         </aside>
 
+        {/* SAĞ KOLON */}
         <main className="lg:col-span-8">
           <Suspense fallback={<div className="text-gray-400">Yükleniyor...</div>}>
-            <DailyLogForm challenge={challenge} todayLog={todayLog} />
+            {isFuture ? (
+              <div className="bg-gray-900/50 border border-yellow-900/30 rounded-3xl p-10 text-center relative overflow-hidden animate-in fade-in duration-700">
+                  <div className="absolute top-0 left-0 w-full h-1 bg-yellow-600 shadow-[0_0_15px_#ca8a04]"></div>
+                  <div className="mb-6 inline-block bg-yellow-500/10 p-4 rounded-full border border-yellow-500/20">
+                     <span className="text-4xl">⏳</span>
+                  </div>
+                  <h2 className="text-3xl font-black text-white mb-4 tracking-tight">HAZIRLIK AŞAMASI</h2>
+                  <p className="text-gray-400 text-lg mb-8 max-w-lg mx-auto">
+                    Bu operasyon henüz başlamadı. Enerjini sakla asker, savaş yakında başlıyor.
+                  </p>
+                  <div className="inline-block bg-yellow-900/20 text-yellow-500 px-6 py-3 rounded-xl font-mono text-xl font-bold border border-yellow-900/50 shadow-lg shadow-yellow-900/20">
+                     BAŞLANGIÇ: {new Date(challenge.start_date).toLocaleDateString('tr-TR')}
+                  </div>
+              </div>
+            ) : (
+              <DailyLogForm challenge={challenge} todayLog={todayLog} />
+            )}
           </Suspense>
         </main>
       </div>

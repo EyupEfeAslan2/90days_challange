@@ -1,313 +1,164 @@
 import { createClient } from '@/utils/supabase/server'
-import { Suspense } from 'react'
+import Link from 'next/link'
 
-// Types
-interface Leader {
-  id: string
-  username: string
-  streak: number
-  total_points: number
-  rank: number
-}
-
-interface LeaderWithBadge extends Leader {
-  badge: string
-  badgeColor: string
-}
-
-// Utility Functions
-const getBadgeInfo = (rank: number, streak: number): { badge: string; color: string } => {
-  if (rank === 1) return { badge: 'General ⭐️', color: 'text-yellow-500' }
-  if (rank === 2) return { badge: 'Albay 🎖️', color: 'text-gray-400' }
-  if (rank === 3) return { badge: 'Yüzbaşı 🏅', color: 'text-orange-600' }
-  if (streak >= 30) return { badge: 'Yüzbaşı', color: 'text-blue-500' }
-  if (streak >= 14) return { badge: 'Teğmen', color: 'text-green-500' }
-  if (streak >= 7) return { badge: 'Çavuş', color: 'text-purple-500' }
-  return { badge: 'Er', color: 'text-gray-500' }
-}
-
-const getRankColor = (rank: number): string => {
-  if (rank === 1) return 'text-yellow-500'
-  if (rank === 2) return 'text-gray-400'
-  if (rank === 3) return 'text-orange-600'
-  return 'text-gray-600'
-}
-
-// Sub-components
-const PodiumSkeleton = () => (
-  <div className="grid grid-cols-3 gap-4 mb-12 items-end">
-    {[48, 60, 40].map((height, i) => (
-      <div 
-        key={i}
-        className="bg-gray-900/50 border border-gray-800 rounded-t-2xl p-4 animate-pulse"
-        style={{ height: `${height * 4}px` }}
-      >
-        <div className="h-8 w-8 bg-gray-800 rounded-full mx-auto mb-2" />
-        <div className="h-4 bg-gray-800 rounded w-20 mx-auto mb-1" />
-        <div className="h-3 bg-gray-800 rounded w-16 mx-auto" />
-      </div>
-    ))}
-  </div>
-)
-
-const ListSkeleton = () => (
-  <div className="bg-gray-900/30 border border-gray-800 rounded-2xl overflow-hidden">
-    {[...Array(5)].map((_, i) => (
-      <div key={i} className="flex items-center justify-between p-5 border-b border-gray-800 animate-pulse">
-        <div className="flex items-center gap-4">
-          <div className="w-8 h-6 bg-gray-800 rounded" />
-          <div className="space-y-2">
-            <div className="h-4 bg-gray-800 rounded w-24" />
-            <div className="h-3 bg-gray-800 rounded w-16" />
-          </div>
-        </div>
-        <div className="space-y-2">
-          <div className="h-4 bg-gray-800 rounded w-12 ml-auto" />
-          <div className="h-3 bg-gray-800 rounded w-20 ml-auto" />
-        </div>
-      </div>
-    ))}
-  </div>
-)
-
-const PodiumPlace = ({ 
-  leader, 
-  position 
-}: { 
-  leader: LeaderWithBadge
-  position: 'first' | 'second' | 'third' 
-}) => {
-  const config = {
-    first: {
-      height: 'h-60',
-      emoji: '🥇',
-      gradient: 'bg-gradient-to-b from-yellow-900/30 to-black',
-      border: 'border-yellow-600/30',
-      glow: 'shadow-2xl shadow-yellow-900/20',
-      bottomBar: 'bg-yellow-500 shadow-[0_0_25px_#eab308]',
-      crown: true,
-      textSize: 'text-2xl',
-      order: 'order-2'
-    },
-    second: {
-      height: 'h-48',
-      emoji: '🥈',
-      gradient: 'bg-gray-900/50',
-      border: 'border-gray-800',
-      glow: '',
-      bottomBar: 'bg-gray-500 shadow-[0_0_15px_gray]',
-      crown: false,
-      textSize: 'text-lg',
-      order: 'order-1'
-    },
-    third: {
-      height: 'h-40',
-      emoji: '🥉',
-      gradient: 'bg-gray-900/50',
-      border: 'border-gray-800',
-      glow: '',
-      bottomBar: 'bg-orange-700 shadow-[0_0_15px_#c2410c]',
-      crown: false,
-      textSize: 'text-lg',
-      order: 'order-3'
-    }
-  }[position]
-
-  return (
-    <div className={`${config.order}`}>
-      <div className={`
-        ${config.gradient} ${config.border} ${config.glow}
-        border rounded-t-2xl p-4 text-center ${config.height}
-        flex flex-col justify-end items-center relative
-        group hover:bg-gray-900/80 transition-all duration-300
-        transform hover:scale-[1.02]
-      `}>
-        {config.crown && (
-          <div className="absolute -top-6 text-3xl animate-bounce">
-            👑
-          </div>
-        )}
-        
-        <div className="text-4xl mb-2 grayscale group-hover:grayscale-0 transition-all duration-300">
-          {config.emoji}
-        </div>
-        
-        <div className={`font-black ${config.textSize} text-white mb-1 truncate max-w-full px-2`}>
-          {leader.username}
-        </div>
-        
-        <div className={`text-sm font-bold mb-1 ${leader.badgeColor}`}>
-          {leader.badge}
-        </div>
-        
-        <div className="text-sm text-gray-400 font-mono">
-          {leader.total_points.toLocaleString()} Puan
-        </div>
-        
-        <div className="text-xs text-gray-500 mt-1">
-          🔥 {leader.streak} gün
-        </div>
-        
-        <div className={`absolute -bottom-[1px] w-full h-1 ${config.bottomBar} transition-all duration-300`} />
-      </div>
-    </div>
-  )
-}
-
-const LeaderboardRow = ({ 
-  leader, 
-  index 
-}: { 
-  leader: LeaderWithBadge
-  index: number 
-}) => {
-  const rankColor = getRankColor(leader.rank)
-  
-  return (
-    <div 
-      className="flex items-center justify-between p-5 border-b border-gray-800 last:border-b-0 hover:bg-white/5 transition-all duration-300 group"
-      style={{ 
-        animationDelay: `${index * 50}ms`,
-        animation: 'fadeIn 0.5s ease-out forwards',
-        opacity: 0
-      }}
-    >
-      <div className="flex items-center gap-4 min-w-0 flex-1">
-        <span className={`
-          font-mono font-bold text-lg w-8 text-center flex-shrink-0
-          ${rankColor}
-        `}>
-          #{leader.rank}
-        </span>
-        
-        <div className="min-w-0 flex-1">
-          <div className="font-bold text-white group-hover:text-red-500 transition-colors truncate">
-            {leader.username}
-          </div>
-          <div className={`text-xs ${leader.badgeColor} font-medium`}>
-            {leader.badge}
-          </div>
-        </div>
-      </div>
-      
-      <div className="text-right flex-shrink-0">
-        <div className="font-mono text-white font-bold">
-          {leader.total_points.toLocaleString()}
-        </div>
-        <div className="text-xs text-gray-500 flex items-center justify-end gap-1">
-          <span>🔥</span>
-          <span>{leader.streak} gün</span>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-const EmptyState = () => (
-  <div className="text-center py-20 px-4">
-    <div className="max-w-md mx-auto space-y-4">
-      <div className="w-16 h-16 mx-auto bg-gray-800 rounded-full flex items-center justify-center">
-        <span className="text-4xl">🏆</span>
-      </div>
-      <div>
-        <h3 className="text-xl font-bold text-gray-300 mb-2">
-          Henüz Lider Yok
-        </h3>
-        <p className="text-gray-500 text-sm">
-          İlk lider olmak için görevlerini tamamlamaya başla!
-        </p>
-      </div>
-    </div>
-  </div>
-)
-
-// Main Component
-export default async function LeaderboardPage() {
+export default async function LeaderboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ id?: string }>
+}) {
   const supabase = await createClient()
+  const params = await searchParams
   
-  // Fetch real leaderboard data
-  // This assumes you have a view or query that calculates user rankings
-  const { data: leaders, error } = await supabase
-    .from('profiles')
-    .select(`
-      id,
-      username,
-      streak,
-      total_points
-    `)
-    .order('total_points', { ascending: false })
+  // 1. Aktif Challenge'ları Çek
+  const { data: challenges } = await supabase
+    .from('challenges')
+    .select('id, title')
+    .eq('is_public', true) // <--- SADECE HERKESE AÇIK OLANLARI GETİR
+    .order('start_date', { ascending: false })
+
+  // 2. Seçili ID'yi belirle (URL'de yoksa listedeki ilkini al)
+  const selectedId = params.id || challenges?.[0]?.id
+
+  // 3. O Challenge'ın Liderlerini Çek
+  const { data: leaders } = await supabase
+    .from('challenge_leaderboard')
+    .select('*')
+    .eq('challenge_id', selectedId)
     .order('streak', { ascending: false })
-    .limit(50)
-
-  if (error) {
-    console.error('Error fetching leaderboard:', error)
-  }
-
-  // Add ranks and badges to leaders
-  const leadersWithBadges: LeaderWithBadge[] = (leaders || []).map((leader, index) => {
-    const rank = index + 1
-    const badgeInfo = getBadgeInfo(rank, leader.streak || 0)
-    
-    return {
-      ...leader,
-      rank,
-      username: leader.username || `User_${leader.id.slice(0, 6)}`,
-      streak: leader.streak || 0,
-      total_points: leader.total_points || 0,
-      badge: badgeInfo.badge,
-      badgeColor: badgeInfo.color
-    }
-  })
-
-  const topThree = leadersWithBadges.slice(0, 3)
-  const remaining = leadersWithBadges.slice(3)
+    .limit(100)
 
   return (
-    <div className="min-h-screen bg-black text-white p-4 md:p-8 pt-24 pb-20">
+    <div className="min-h-screen bg-black text-white p-4 md:p-8 pt-32 pb-20">
       <div className="max-w-4xl mx-auto">
         
-        {/* Header */}
-        <header className="text-center mb-12 space-y-4">
-          <h1 className="text-4xl md:text-5xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-white via-gray-200 to-gray-500">
-            LİDERLİK TABLOSU
+        {/* Başlık */}
+        <div className="text-center mb-10 space-y-2">
+          <h1 className="text-4xl md:text-6xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-white to-gray-600">
+            LİDERLİK CEPHESİ
           </h1>
-          <p className="text-gray-400 max-w-lg mx-auto text-sm md:text-base">
-            Disiplin, en sessiz çığlıktır. İşte cephenin en iradeli savaşçıları.
+          <p className="text-gray-400 font-mono text-sm">
+            "Sadece en disiplinliler zirveyi görür."
           </p>
-        </header>
+        </div>
 
-        {/* Content */}
-        {leadersWithBadges.length === 0 ? (
-          <EmptyState />
-        ) : (
-          <>
-            {/* Podium (Top 3) */}
-            <Suspense fallback={<PodiumSkeleton />}>
-              {topThree.length >= 3 && (
-                <div className="grid grid-cols-3 gap-4 mb-12 items-end">
-                  <PodiumPlace leader={topThree[1]} position="second" />
-                  <PodiumPlace leader={topThree[0]} position="first" />
-                  <PodiumPlace leader={topThree[2]} position="third" />
-                </div>
-              )}
-            </Suspense>
+        {/* --- CHALLENGE SEÇİCİ (Yatay Kaydırma) --- */}
+        <div className="flex overflow-x-auto pb-6 mb-8 gap-3 scrollbar-hide justify-start md:justify-center px-4">
+          {challenges?.map((c) => {
+            const isActive = c.id === selectedId
+            return (
+              <Link
+                key={c.id}
+                href={`/leaderboard?id=${c.id}`}
+                className={`
+                  whitespace-nowrap px-6 py-2.5 rounded-xl font-bold text-sm transition-all border
+                  ${isActive 
+                    ? 'bg-red-700 text-white border-red-500 shadow-[0_0_20px_-5px_#dc2626] scale-105' 
+                    : 'bg-gray-900/50 text-gray-500 border-gray-800 hover:border-gray-600 hover:text-gray-300'
+                  }
+                `}
+              >
+                {c.title}
+              </Link>
+            )
+          })}
+        </div>
 
-            {/* List (Remaining) */}
-            <Suspense fallback={<ListSkeleton />}>
-              {remaining.length > 0 && (
-                <div className="bg-gray-900/30 border border-gray-800 rounded-2xl overflow-hidden backdrop-blur-sm">
-                  {remaining.map((leader, index) => (
-                    <LeaderboardRow 
-                      key={leader.id} 
-                      leader={leader} 
-                      index={index}
-                    />
-                  ))}
+        {/* --- İLK 3 KÜRSÜ (PODIUM) --- */}
+        {leaders && leaders.length > 0 && (
+          <div className="flex justify-center items-end gap-4 mb-12 min-h-[200px]">
+            
+            {/* 2. SIRA */}
+            {leaders[1] && (
+              <div className="flex flex-col items-center group">
+                <div className="w-20 h-20 rounded-full border-2 border-gray-400 bg-gray-900 flex items-center justify-center text-xl font-bold mb-3 shadow-[0_0_15px_gray] group-hover:scale-105 transition">
+                   {leaders[1].username?.[0]?.toUpperCase()}
                 </div>
-              )}
-            </Suspense>
-          </>
+                <div className="bg-gray-800/80 w-24 h-32 rounded-t-xl border-t-4 border-gray-400 flex flex-col justify-end p-2 text-center">
+                   <span className="text-2xl font-black text-white">2</span>
+                   <span className="text-xs truncate text-gray-300 font-bold mt-1">{leaders[1].username}</span>
+                   <span className="text-sm font-mono text-green-400">{leaders[1].streak} Gün</span>
+                </div>
+              </div>
+            )}
+
+            {/* 1. SIRA (ŞAMPİYON) */}
+            {leaders[0] && (
+              <div className="flex flex-col items-center z-10 group">
+                 <div className="animate-bounce mb-2 text-2xl">👑</div>
+                 <div className="w-24 h-24 rounded-full border-4 border-yellow-500 bg-black flex items-center justify-center text-3xl font-black text-yellow-500 mb-3 shadow-[0_0_30px_#eab308] group-hover:scale-105 transition">
+                    {leaders[0].username?.[0]?.toUpperCase()}
+                 </div>
+                 <div className="bg-gradient-to-b from-yellow-900/40 to-black w-32 h-44 rounded-t-xl border-t-4 border-yellow-500 flex flex-col justify-end p-4 text-center shadow-lg shadow-yellow-900/20">
+                    <span className="text-4xl font-black text-white">1</span>
+                    <span className="text-sm truncate text-yellow-100 font-bold mt-2">{leaders[0].username}</span>
+                    <span className="text-lg font-mono text-yellow-500 font-bold">{leaders[0].streak} Gün 🔥</span>
+                 </div>
+              </div>
+            )}
+
+            {/* 3. SIRA */}
+            {leaders[2] && (
+              <div className="flex flex-col items-center group">
+                <div className="w-20 h-20 rounded-full border-2 border-orange-700 bg-gray-900 flex items-center justify-center text-xl font-bold mb-3 shadow-[0_0_15px_#c2410c] group-hover:scale-105 transition">
+                   {leaders[2].username?.[0]?.toUpperCase()}
+                </div>
+                <div className="bg-gray-800/80 w-24 h-24 rounded-t-xl border-t-4 border-orange-700 flex flex-col justify-end p-2 text-center">
+                   <span className="text-2xl font-black text-white">3</span>
+                   <span className="text-xs truncate text-gray-300 font-bold mt-1">{leaders[2].username}</span>
+                   <span className="text-sm font-mono text-green-400">{leaders[2].streak} Gün</span>
+                </div>
+              </div>
+            )}
+
+          </div>
         )}
+
+        {/* --- LİSTE (İlk 3 hariç diğerleri veya hepsi) --- */}
+        <div className="bg-gray-900/30 border border-gray-800 rounded-2xl overflow-hidden backdrop-blur-sm">
+          {leaders && leaders.length > 0 ? (
+            leaders.map((user, index) => (
+              <div 
+                key={user.user_id + '_' + index} 
+                className={`
+                  flex items-center justify-between p-5 border-b border-gray-800/50 hover:bg-white/5 transition group
+                  ${index < 3 ? 'bg-white/5' : ''} 
+                `}
+              >
+                <div className="flex items-center gap-4">
+                  <span className={`
+                    font-mono font-bold text-lg w-8 text-center
+                    ${index === 0 ? 'text-yellow-500' : index === 1 ? 'text-gray-300' : index === 2 ? 'text-orange-600' : 'text-gray-600'}
+                  `}>
+                    #{index + 1}
+                  </span>
+                  
+                  <div className="flex items-center gap-3">
+                     <div className="w-8 h-8 rounded bg-gray-800 flex items-center justify-center text-xs font-bold text-gray-400">
+                        {user.username?.[0]?.toUpperCase()}
+                     </div>
+                     <div>
+                        <div className="font-bold text-white group-hover:text-red-500 transition">
+                            {user.username || 'Bilinmeyen Asker'}
+                        </div>
+                        {index < 3 && <div className="text-[10px] text-yellow-600 font-bold uppercase tracking-wider">Lider Kadro</div>}
+                     </div>
+                  </div>
+                </div>
+                
+                <div className="text-right">
+                  <div className="font-mono text-white font-bold text-lg">{user.streak}</div>
+                  <div className="text-[10px] text-gray-500 uppercase">Gün Serisi</div>
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="flex flex-col items-center justify-center py-20 text-gray-500">
+               <div className="text-4xl mb-4 opacity-50">☠️</div>
+               <p>Bu cephede henüz hayatta kalan yok.</p>
+               <p className="text-xs mt-2">İlk kanı sen dök.</p>
+            </div>
+          )}
+        </div>
 
       </div>
     </div>

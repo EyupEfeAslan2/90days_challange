@@ -1,93 +1,163 @@
-import { createClient } from '@/utils/supabase/server'
+// components/ChallengeList.tsx
 import Link from 'next/link'
-import { deleteChallenge } from '@/app/actions' // <--- Action'ı import ettik
+import { getServerUser, queryBuilder } from '@/utils/supabase/server'
+import type { Challenge } from '@/types/database.types'
+import DeleteButton from './DeleteButton'
+import { deleteChallengeAction } from '@/app/actions/challenges'
 
-export default async function Home() {
-  const supabase = await createClient()
+// Types
+type ChallengeWithOwnership = Challenge & {
+  isOwner: boolean
+}
 
-  // Kullanıcıyı çek (Giriş yapmamışsa buton göstermeyebiliriz)
-  const { data: { user } } = await supabase.auth.getUser()
+// Utility Functions
+function formatDate(dateString: string): string {
+  return new Date(dateString).toLocaleDateString('tr-TR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  })
+}
 
-  const { data: challenges, error } = await supabase
-    .from('challenges')
+// Sub-components
+function EmptyState() {
+  return (
+    <div className="col-span-full flex flex-col items-center justify-center py-16 px-4">
+      <div className="text-6xl mb-4">🎯</div>
+      <h3 className="text-xl font-bold text-white mb-2">Henüz Cephe Yok</h3>
+      <p className="text-gray-500 text-sm text-center max-w-md">
+        İlk meydan okumayı oluşturun ve sınırlarınızı zorlayın.
+      </p>
+    </div>
+  )
+}
+
+function ChallengeCard({ 
+  challenge, 
+  isOwner 
+}: { 
+  challenge: Challenge
+  isOwner: boolean 
+}) {
+  return (
+    <div className="group relative bg-gray-900/30 border border-gray-800 rounded-2xl p-6 transition-all duration-300 hover:border-gray-600 hover:shadow-lg hover:shadow-red-900/10 flex flex-col justify-between">
+      
+      {/* Delete Button (Owner Only) */}
+      {isOwner && (
+        <div className="absolute top-4 right-4 z-20 opacity-0 group-hover:opacity-100 transition-opacity">
+          <DeleteButton
+            onDelete={async () => {
+              'use server'
+              await deleteChallengeAction(challenge.id)
+            }}
+            title="Bu cepheyi sil"
+            className="p-2 bg-red-900/20 text-red-500 rounded-lg hover:bg-red-600 hover:text-white"
+          />
+        </div>
+      )}
+
+      {/* Content */}
+      <div>
+        <h3 className="text-xl font-bold text-white mb-2 pr-10">
+          {challenge.title}
+        </h3>
+        
+        <p className="text-gray-400 text-sm line-clamp-2 mb-4">
+          {challenge.description || 'Açıklama yok.'}
+        </p>
+        
+        {/* Dates */}
+        <div className="space-y-1 mb-6">
+          <div className="flex items-center gap-2 text-xs font-mono text-gray-500">
+            <span className="text-green-500">▶</span>
+            <span>BAŞLANGIÇ:</span>
+            <span className="text-gray-400">{formatDate(challenge.start_date)}</span>
+          </div>
+          <div className="flex items-center gap-2 text-xs font-mono text-gray-500">
+            <span className="text-red-500">■</span>
+            <span>BİTİŞ:</span>
+            <span className="text-gray-400">{formatDate(challenge.end_date)}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Join Button */}
+      <Link 
+        href={`/dashboard?id=${challenge.id}`}
+        className="block w-full text-center bg-gray-800 py-3 rounded-lg font-bold text-sm transition-all duration-300 hover:bg-red-700 hover:text-white hover:shadow-lg hover:shadow-red-900/20"
+      >
+        CEPHYE KATIL
+      </Link>
+    </div>
+  )
+}
+
+// Main Component
+export default async function ChallengeList() {
+  const user = await getServerUser()
+
+  // Fetch challenges
+  const { data: challenges, error } = await queryBuilder('challenges')
     .select('*')
+    .eq('is_public', true)
     .order('start_date', { ascending: false })
 
-  if (error) return <div className="text-red-500 pt-32 text-center">Sistem Hatası.</div>
+  if (error) {
+    return (
+      <div className="text-red-500 pt-32 text-center">
+        <p className="text-xl font-bold mb-2">⚠️ Sistem Hatası</p>
+        <p className="text-sm text-gray-400">{error.message}</p>
+      </div>
+    )
+  }
+
+  // Add ownership info to challenges
+  const challengesWithOwnership: ChallengeWithOwnership[] = (challenges || []).map(
+    (challenge) => ({
+      ...challenge,
+      isOwner: user?.id === challenge.created_by,
+    })
+  )
 
   return (
     <main className="min-h-screen bg-black text-white p-4 md:p-8 pt-32">
-      <div className="max-w-5xl mx-auto space-y-8">
+      <div className="max-w-7xl mx-auto space-y-8">
         
-        {/* --- BAŞLIK VE YENİ OLUŞTUR --- */}
+        {/* Header */}
         <div className="flex flex-col md:flex-row justify-between items-end gap-4 border-b border-gray-800 pb-6">
-            <div>
-                <h1 className="text-3xl md:text-5xl font-black tracking-tighter text-white">
-                    MEYDAN <span className="text-red-600">OKU</span>
-                </h1>
-                <p className="text-gray-400 mt-2 text-sm md:text-base">
-                    Sınırlarını zorla. Bir cephe seç veya kendin yarat.
-                </p>
-            </div>
-            
-            {user && (
-              <Link 
-                href="/create-challenge" 
-                className="bg-white text-black px-6 py-3 rounded-lg font-bold hover:bg-gray-200 transition flex items-center gap-2"
-              >
-                <span>+</span> YENİ CEPHE OLUŞTUR
-              </Link>
-            )}
+          <div>
+            <h1 className="text-4xl md:text-6xl font-black tracking-tighter text-white">
+              MEYDAN <span className="text-red-600">OKU</span>
+            </h1>
+            <p className="text-gray-400 mt-2 text-sm md:text-base">
+              Sınırlarını zorla. Bir cephe seç veya kendin yarat.
+            </p>
+          </div>
+          
+          {user && (
+            <Link 
+              href="/create-challenge" 
+              className="group bg-white text-black px-6 py-3 rounded-lg font-bold transition-all duration-300 hover:bg-gray-200 hover:shadow-lg hover:scale-105 active:scale-95 flex items-center gap-2"
+            >
+              <span className="text-lg group-hover:rotate-90 transition-transform">+</span>
+              <span>YENİ CEPHE OLUŞTUR</span>
+            </Link>
+          )}
         </div>
 
-        {/* --- LİSTE --- */}
+        {/* Challenge Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {challenges?.map((challenge) => {
-            // Kullanıcı bu challenge'ın sahibi mi?
-            const isOwner = user && user.id === challenge.created_by
-
-            return (
-              <div key={challenge.id} className="group relative bg-gray-900/30 border border-gray-800 p-6 rounded-2xl hover:border-gray-600 transition flex flex-col justify-between">
-                
-                {/* Silme Butonu (Sadece Sahibi Görür) */}
-                {isOwner && (
-                  <div className="absolute top-4 right-4 z-20 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <form action={deleteChallenge}>
-                      <input type="hidden" name="challenge_id" value={challenge.id} />
-                      <button 
-                        type="submit"
-                        className="p-2 bg-red-900/20 text-red-500 rounded-lg hover:bg-red-600 hover:text-white transition"
-                        title="Bu cepheyi sil"
-                      >
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                        </svg>
-                      </button>
-                    </form>
-                  </div>
-                )}
-
-                <div>
-                  <h3 className="text-xl font-bold text-white mb-2">{challenge.title}</h3>
-                  <p className="text-gray-400 text-sm line-clamp-2 mb-4">
-                    {challenge.description || 'Açıklama yok.'}
-                  </p>
-                  
-                  <div className="text-xs font-mono text-gray-500 space-y-1 mb-6">
-                    <div>BAŞLANGIÇ: {new Date(challenge.start_date).toLocaleDateString('tr-TR')}</div>
-                    <div>BİTİŞ: {new Date(challenge.end_date).toLocaleDateString('tr-TR')}</div>
-                  </div>
-                </div>
-
-                <Link 
-                  href={`/dashboard?id=${challenge.id}`}
-                  className="w-full block text-center bg-gray-800 py-3 rounded-lg font-bold text-sm hover:bg-red-700 hover:text-white transition"
-                >
-                  CEPHYE KATIL
-                </Link>
-              </div>
-            )
-          })}
+          {challengesWithOwnership.length === 0 ? (
+            <EmptyState />
+          ) : (
+            challengesWithOwnership.map((challenge) => (
+              <ChallengeCard
+                key={challenge.id}
+                challenge={challenge}
+                isOwner={challenge.isOwner}
+              />
+            ))
+          )}
         </div>
 
       </div>
