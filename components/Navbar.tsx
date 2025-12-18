@@ -5,13 +5,36 @@ import { usePathname } from 'next/navigation'
 import SignOutButton from './SignOutButton'
 import { User } from '@supabase/supabase-js'
 import { useState, useEffect } from 'react'
+import { createClient } from '@/utils/supabase/client' // Client import eklendi
 
 export default function Navbar({ user }: { user: User | null }) {
   const pathname = usePathname()
   const [isScrolled, setIsScrolled] = useState(false)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+  
+  // --- YENİ EKLENEN KISIM: Username State ve Fetch ---
+  const [username, setUsername] = useState<string | null>(null)
+  const supabase = createClient()
 
-  // Scroll detection for backdrop blur effect
+  useEffect(() => {
+    async function fetchUsername() {
+      if (user) {
+        const { data } = await supabase
+          .from('profiles')
+          .select('username')
+          .eq('id', user.id)
+          .single()
+        
+        if (data?.username) {
+          setUsername(data.username)
+        }
+      }
+    }
+    fetchUsername()
+  }, [user])
+  // ---------------------------------------------------
+
+  // Scroll detection
   useEffect(() => {
     const handleScroll = () => {
       setIsScrolled(window.scrollY > 10)
@@ -20,16 +43,17 @@ export default function Navbar({ user }: { user: User | null }) {
     return () => window.removeEventListener('scroll', handleScroll)
   }, [])
 
-  // Hide navbar on specific pages (early return AFTER all hooks)
   const shouldHideNavbar = pathname === '/login' || pathname === '/signup' || pathname === '/onboarding'
 
   if (shouldHideNavbar) {
     return null
   }
 
+  // Gösterilecek isim: Varsa username, yoksa email
+  const displayName = username ? `@${username}` : user?.email?.split('@')[0]
+
   return (
     <>
-      {/* Spacer to prevent content from going under navbar */}
       <div className="h-16" />
 
       <nav 
@@ -80,16 +104,16 @@ export default function Navbar({ user }: { user: User | null }) {
                   <div className="hidden lg:flex items-center gap-4">
                     <div className="text-right">
                       <div className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">
-                        Hesap
+                        HESAP
                       </div>
                       <div className="text-sm font-bold text-white truncate max-w-[120px]">
-                        {user.email?.split('@')[0]}
+                        {displayName}
                       </div>
                     </div>
                     <div className="h-8 w-[1px] bg-gray-800" />
                   </div>
 
-                  {/* Sign Out Button */}
+                  {/* Sign Out Button (Orjinal hali) */}
                   <SignOutButton />
 
                   {/* Mobile Menu Button */}
@@ -129,9 +153,6 @@ export default function Navbar({ user }: { user: User | null }) {
                 active={pathname === '/dashboard'}
                 onClick={() => setIsMobileMenuOpen(false)}
               >
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
-                </svg>
                 Dashboard
               </MobileNavItem>
               
@@ -140,9 +161,6 @@ export default function Navbar({ user }: { user: User | null }) {
                 active={pathname === '/'}
                 onClick={() => setIsMobileMenuOpen(false)}
               >
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-                </svg>
                 Meydan Oku
               </MobileNavItem>
               
@@ -151,9 +169,6 @@ export default function Navbar({ user }: { user: User | null }) {
                 active={pathname === '/feed'}
                 onClick={() => setIsMobileMenuOpen(false)}
               >
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                </svg>
                 Akış
               </MobileNavItem>
               
@@ -162,9 +177,6 @@ export default function Navbar({ user }: { user: User | null }) {
                 active={pathname === '/leaderboard'}
                 onClick={() => setIsMobileMenuOpen(false)}
               >
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
-                </svg>
                 Liderlik
               </MobileNavItem>
 
@@ -172,12 +184,12 @@ export default function Navbar({ user }: { user: User | null }) {
               <div className="pt-4 mt-4 border-t border-gray-800">
                 <div className="flex items-center gap-3 px-4 py-3 bg-gray-900/50 rounded-lg">
                   <div className="w-10 h-10 bg-gradient-to-br from-red-600 to-red-800 rounded-full flex items-center justify-center text-white font-bold">
-                    {user.email?.charAt(0).toUpperCase()}
+                    {displayName.charAt(0).toUpperCase().replace('@', '')}
                   </div>
                   <div>
-                    <div className="text-xs text-gray-500 uppercase tracking-wider">Hesap</div>
+                    <div className="text-xs text-gray-500 uppercase tracking-wider">HESAP</div>
                     <div className="text-sm font-bold text-white truncate">
-                      {user.email?.split('@')[0]}
+                      {displayName}
                     </div>
                   </div>
                 </div>
@@ -190,26 +202,14 @@ export default function Navbar({ user }: { user: User | null }) {
   )
 }
 
-// Desktop Nav Item
-function NavItem({
-  href,
-  children,
-  active,
-}: {
-  href: string
-  children: React.ReactNode
-  active: boolean
-}) {
+// Sub-components (Aynen korundu)
+function NavItem({ href, children, active }: { href: string; children: React.ReactNode; active: boolean }) {
   return (
     <Link
       href={href}
       className={`
         relative text-sm font-bold tracking-wide px-4 py-2 rounded-full transition-all duration-300
-        ${
-          active
-            ? 'text-white bg-red-600 shadow-[0_10px_20px_-10px_rgba(220,38,38,0.5)]'
-            : 'text-gray-400 hover:text-white hover:bg-white/5'
-        }
+        ${active ? 'text-white bg-red-600 shadow-[0_10px_20px_-10px_rgba(220,38,38,0.5)]' : 'text-gray-400 hover:text-white hover:bg-white/5'}
       `}
     >
       {children}
@@ -217,29 +217,14 @@ function NavItem({
   )
 }
 
-// Mobile Nav Item
-function MobileNavItem({
-  href,
-  children,
-  active,
-  onClick,
-}: {
-  href: string
-  children: React.ReactNode
-  active: boolean
-  onClick: () => void
-}) {
+function MobileNavItem({ href, children, active, onClick }: { href: string; children: React.ReactNode; active: boolean; onClick: () => void }) {
   return (
     <Link
       href={href}
       onClick={onClick}
       className={`
         flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-300 font-bold text-sm
-        ${
-          active
-            ? 'text-white bg-red-600 shadow-lg'
-            : 'text-gray-400 hover:text-white hover:bg-gray-900'
-        }
+        ${active ? 'text-white bg-red-600 shadow-lg' : 'text-gray-400 hover:text-white hover:bg-gray-900'}
       `}
     >
       {children}
