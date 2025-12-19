@@ -120,7 +120,8 @@ export function queryBuilder<T extends keyof Database['public']['Tables']>(
   table: T
 ) {
   const supabase = createClient()
-  return supabase.from(table)
+  // FIX: Type assertion added
+  return (supabase.from(table) as any)
 }
 
 /**
@@ -134,7 +135,8 @@ export async function insertRecord<T extends keyof Database['public']['Tables']>
   data: Database['public']['Tables'][T]['Insert']
 ) {
   const supabase = createClient()
-  return supabase.from(table).insert(data).select().single()
+  // FIX: Type assertion added to bypass generic union mismatch
+  return (supabase.from(table) as any).insert(data).select().single()
 }
 
 /**
@@ -150,7 +152,8 @@ export async function updateRecord<T extends keyof Database['public']['Tables']>
   data: Database['public']['Tables'][T]['Update']
 ) {
   const supabase = createClient()
-  return supabase.from(table).update(data).eq('id', id).select().single()
+  // FIX: Type assertion added
+  return (supabase.from(table) as any).update(data).eq('id', id).select().single()
 }
 
 /**
@@ -164,7 +167,8 @@ export async function deleteRecord<T extends keyof Database['public']['Tables']>
   id: string
 ) {
   const supabase = createClient()
-  return supabase.from(table).delete().eq('id', id)
+  // FIX: Type assertion added
+  return (supabase.from(table) as any).delete().eq('id', id)
 }
 
 /**
@@ -178,7 +182,8 @@ export async function getRecordById<T extends keyof Database['public']['Tables']
   id: string
 ) {
   const supabase = createClient()
-  return supabase.from(table).select('*').eq('id', id).single()
+  // FIX: Type assertion added
+  return (supabase.from(table) as any).select('*').eq('id', id).single()
 }
 
 /**

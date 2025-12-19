@@ -185,7 +185,7 @@ export default function Navbar({ user }: { user: User | null }) {
               <div className="pt-4 mt-4 border-t border-gray-800">
                 <div className="flex items-center gap-3 px-4 py-3 bg-gray-900/50 rounded-lg">
                   <div className="w-10 h-10 bg-gradient-to-br from-red-600 to-red-800 rounded-full flex items-center justify-center text-white font-bold">
-                    {displayName.charAt(0).toUpperCase().replace('@', '')}
+                    {(displayName || 'A').charAt(0).toUpperCase().replace('@', '')}
                   </div>
                   <div>
                     <div className="text-xs text-gray-500 uppercase tracking-wider">HESAP</div>
