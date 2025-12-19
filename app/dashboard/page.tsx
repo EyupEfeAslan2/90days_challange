@@ -1,10 +1,13 @@
 import { createClient } from '@/utils/supabase/server'
-import { submitDailyLog } from './actions'
+// Action importu
+import { submitDailyLog, leaveChallenge } from '../actions' 
 import Link from 'next/link'
 import { Suspense } from 'react'
 import { redirect } from 'next/navigation'
+// DeleteButton importu eklendi
+import DeleteButton from '@/components/DeleteButton' 
 
-// --- TYPES ---
+// --- TYPES & INTERFACES ---
 interface Challenge {
   id: string
   title: string
@@ -16,85 +19,108 @@ interface Challenge {
 interface UserChallenge {
   challenge_id: string
   joined_at: string
-  challenges: Challenge // Supabase join returns single object or array
+  challenges: Challenge | Challenge[] | null
 }
 
 interface DailyLog {
+  id: string
   sins_of_omission: string | null
   sins_of_commission: string | null
+  is_completed: boolean
 }
 
-// --- HELPERS ---
-// Supabase join sonucu bazen array bazen obje dönebilir, bunu normalize ediyoruz.
+// --- UTILITY FUNCTIONS ---
 const normalizeChallenge = (data: Challenge | Challenge[] | null): Challenge | null => {
   if (!data) return null
-  return Array.isArray(data) ? data[0] : data
+  if (Array.isArray(data)) return data[0] || null
+  return data
 }
 
 const calculateStreakPercentage = (logCount: number, maxDays: number = 90): number => {
   return Math.min((logCount / maxDays) * 100, 100)
 }
 
-// --- SUB-COMPONENTS ---
+// --- LOCAL COMPONENTS ---
 
-// 1. Sol Menü Kartı
+// 1. Sidebar Item (GÜNCELLENDİ: Çıkış Butonu Buraya Eklendi)
 const DashboardSidebarItem = ({ challenge, isActive }: { challenge: Challenge; isActive: boolean }) => (
-  <Link 
-    href={`/dashboard?id=${challenge.id}`}
-    className={`
-      group relative p-4 rounded-xl border transition-all duration-300 block
-      ${isActive 
-        ? 'bg-gradient-to-r from-red-900/40 to-black border-red-800 shadow-[0_0_15px_-5px_#991b1b]' 
-        : 'bg-gray-900/40 border-gray-800 hover:border-gray-600 hover:bg-gray-800/60'
-      }
-    `}
-  >
-    <div className="flex justify-between items-start">
-      <div className="flex-1 min-w-0">
-        <h3 className={`font-bold truncate ${isActive ? 'text-white' : 'text-gray-400 group-hover:text-gray-200'}`}>
-          {challenge.title}
-        </h3>
-        <p className="text-xs text-gray-500 mt-1 font-mono">
-          Bitiş: {challenge.end_date}
-        </p>
+  <div className="relative group">
+    {/* Kart Linki */}
+    <Link 
+      href={`/dashboard?id=${challenge.id}`}
+      className={`
+        relative block p-4 rounded-xl border transition-all duration-300 overflow-hidden
+        ${isActive 
+          ? 'bg-gradient-to-r from-red-900/40 to-black border-red-800 shadow-[0_0_15px_-5px_#991b1b]' 
+          : 'bg-gray-900/40 border-gray-800 hover:border-gray-600 hover:bg-gray-800/60'
+        }
+      `}
+    >
+      <div className="flex justify-between items-start relative z-10">
+        <div className="flex-1 min-w-0 pr-6"> {/* Buton için sağdan boşluk bıraktık */}
+          <h3 className={`font-bold truncate text-sm ${isActive ? 'text-white' : 'text-gray-400 group-hover:text-gray-200'}`}>
+            {challenge.title}
+          </h3>
+          <p className="text-[10px] text-gray-500 mt-1 font-mono uppercase tracking-wide">
+            Bitiş: {new Date(challenge.end_date).toLocaleDateString('tr-TR')}
+          </p>
+        </div>
+        {isActive && (
+          <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse shadow-[0_0_8px_#ef4444] flex-shrink-0 mt-1" />
+        )}
       </div>
-      {isActive && (
-        <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse shadow-[0_0_8px_#ef4444] flex-shrink-0 ml-2" />
-      )}
+      {/* Hover Efekti */}
+      {!isActive && <div className="absolute inset-0 bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />}
+    </Link>
+
+    {/* SİLME BUTONU (Sadece Hover Yapınca Gözükür) */}
+    <div className="absolute top-2 right-2 z-20 opacity-0 group-hover:opacity-100 transition-opacity">
+        <DeleteButton 
+            onDelete={async () => {
+               'use server'
+               await leaveChallenge(challenge.id)
+            }}
+            title="" // Tooltip veya boş bırakabilirsin, icon yeterli
+            className="w-6 h-6 p-0 flex items-center justify-center bg-black/50 hover:bg-red-900 text-gray-400 hover:text-white border border-gray-700 hover:border-red-500 rounded-full backdrop-blur-md"
+        />
     </div>
-  </Link>
+  </div>
 )
 
-// 2. İstatistik Paneli
+// 2. Stats Panel
 const StatsPanel = ({ myLogCount, totalParticipants, activeToday }: { myLogCount: number; totalParticipants: number; activeToday: number }) => {
   const streakPercentage = calculateStreakPercentage(myLogCount)
   
   return (
-    <div className="sticky top-32 space-y-4">
-      <div className="bg-black/40 backdrop-blur-md border border-white/10 rounded-2xl p-6 shadow-xl">
-        <h2 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-4">İSTATİSTİKLER</h2>
+    <div className="sticky top-32 space-y-4 animate-in slide-in-from-left duration-700">
+      <div className="bg-[#0f1115] border border-gray-800 rounded-2xl p-6 shadow-xl">
+        <h2 className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-6 border-b border-gray-800 pb-2">
+          OPERASYON VERİLERİ
+        </h2>
         
-        <div className="mb-6">
-          <div className="text-4xl font-black text-white">
-            {myLogCount} <span className="text-lg font-medium text-gray-600">Gün</span>
+        <div className="mb-8 text-center">
+          <div className="inline-flex items-baseline gap-2">
+            <span className="text-5xl font-black text-white tracking-tighter">{myLogCount}</span>
+            <span className="text-sm font-bold text-gray-500 uppercase">Gün</span>
           </div>
-          <div className="text-sm text-gray-400 mb-2">Süreklilik Skoru</div>
-          <div className="w-full h-1.5 bg-gray-800 rounded-full overflow-hidden">
+          <p className="text-xs text-gray-500 mt-1">Disiplin Sürekliliği</p>
+          
+          <div className="mt-4 w-full h-2 bg-gray-900 rounded-full overflow-hidden border border-gray-800">
             <div 
-              className="h-full bg-gradient-to-r from-green-600 to-green-400 transition-all duration-700 ease-out"
+              className="h-full bg-gradient-to-r from-red-600 to-red-400 transition-all duration-1000 ease-out shadow-[0_0_10px_#ef4444]"
               style={{ width: `${streakPercentage}%` }}
             />
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4 border-t border-gray-800 pt-4">
-          <div>
-            <div className="text-2xl font-bold text-white">{totalParticipants}</div>
-            <div className="text-[10px] text-gray-500 uppercase tracking-wide">Katılımcı</div>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="bg-black/40 rounded-xl p-3 text-center border border-gray-800">
+            <div className="text-xl font-bold text-white">{totalParticipants}</div>
+            <div className="text-[9px] text-gray-500 uppercase tracking-wide font-bold mt-1">Toplam Üye</div>
           </div>
-          <div>
-            <div className="text-2xl font-bold text-green-500">{activeToday}</div>
-            <div className="text-[10px] text-gray-500 uppercase tracking-wide">Bugün Aktif</div>
+          <div className="bg-black/40 rounded-xl p-3 text-center border border-gray-800">
+            <div className="text-xl font-bold text-green-500">{activeToday}</div>
+            <div className="text-[9px] text-gray-500 uppercase tracking-wide font-bold mt-1">Bugün Aktif</div>
           </div>
         </div>
       </div>
@@ -102,92 +128,118 @@ const StatsPanel = ({ myLogCount, totalParticipants, activeToday }: { myLogCount
   )
 }
 
-// 3. Günlük Log Formu
-const DailyLogForm = ({ challenge, todayLog }: { challenge: Challenge; todayLog: DailyLog | null }) => (
-  <div className="bg-gray-900/20 border border-white/5 rounded-3xl p-6 md:p-10 relative overflow-hidden">
-    {/* Ambiyans */}
-    <div className="absolute top-0 right-0 w-96 h-96 bg-red-600/5 rounded-full blur-[100px] pointer-events-none" />
+// 3. Daily Log Form (GÜNCELLENDİ: Buradaki Çıkış Butonu Kaldırıldı)
+const DailyLogForm = ({ challenge, todayLog }: { challenge: Challenge; todayLog: DailyLog | null }) => {
+  const isCompleted = todayLog?.is_completed
+  
+  return (
+    <div className="bg-[#0f1115] border border-gray-800 rounded-3xl p-6 md:p-10 relative overflow-hidden animate-in zoom-in-95 duration-500">
+      <div className="absolute top-0 right-0 w-96 h-96 bg-red-900/10 rounded-full blur-[120px] pointer-events-none" />
 
-    <div className="relative z-10">
-      <div className="flex flex-col md:flex-row md:justify-between md:items-end gap-4 mb-8">
-        <div className="flex-1 min-w-0">
-          <h1 className="text-3xl font-black text-white tracking-tight">{challenge.title}</h1>
-          <p className="text-gray-400 mt-2 text-sm max-w-lg">{challenge.description || "Disiplin özgürlüktür."}</p>
+      <div className="relative z-10">
+        <div className="flex flex-col md:flex-row md:justify-between md:items-start gap-6 mb-8 border-b border-gray-800 pb-6">
+          <div className="flex-1 min-w-0">
+            <h1 className="text-3xl md:text-4xl font-black text-white tracking-tighter leading-tight mb-2">
+              {challenge.title}
+            </h1>
+            <p className="text-gray-400 text-sm leading-relaxed max-w-2xl">
+              {challenge.description || "Disiplin, anlık arzular ile nihai hedeflerin arasındaki köprüdür."}
+            </p>
+          </div>
+          
+          {/* DURUM BADGE */}
+          <div className={`
+            flex items-center gap-2 px-4 py-2 rounded-full text-[10px] font-bold uppercase tracking-widest border shadow-lg whitespace-nowrap
+            ${isCompleted 
+              ? 'bg-green-900/20 border-green-900/50 text-green-500' 
+              : 'bg-red-900/20 border-red-900/50 text-red-500 animate-pulse'
+            }
+          `}>
+            <span className={`w-2 h-2 rounded-full ${isCompleted ? 'bg-green-500' : 'bg-red-500'}`} />
+            {isCompleted ? 'GÜNLÜK RAPOR TAMAM' : 'RAPOR BEKLENİYOR'}
+          </div>
         </div>
-        <div className={`px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-widest border ${todayLog ? 'bg-green-500/10 border-green-500/20 text-green-500' : 'bg-red-500/10 border-red-500/20 text-red-500 animate-pulse'}`}>
-          {todayLog ? '● GÜNLÜK TAMAMLANDI' : '● GÜNLÜK BEKLENİYOR'}
-        </div>
+
+        <form action={submitDailyLog} className="space-y-8">
+          <input type="hidden" name="challenge_id" value={challenge.id} />
+          
+          <div className="grid md:grid-cols-2 gap-8">
+            <div className="space-y-3">
+              <label className="flex items-center gap-2 text-xs font-bold text-gray-400 uppercase tracking-widest">
+                <span className="w-1.5 h-1.5 bg-blue-500 rounded-full" /> 
+                İhmaller (Yapmadıklarım)
+              </label>
+              <div className="relative group">
+                <textarea 
+                  name="omission"
+                  key={`${challenge.id}-omission`}
+                  defaultValue={todayLog?.sins_of_omission || ''}
+                  placeholder="Bugün planlayıp da gerçekleştirmediğin görevler nelerdi?"
+                  className="w-full h-48 bg-black/40 border border-gray-800 rounded-xl p-5 text-white placeholder:text-gray-600 focus:border-blue-600 focus:ring-1 focus:ring-blue-900 outline-none transition resize-none leading-relaxed text-sm"
+                />
+                <div className="absolute inset-0 rounded-xl border border-blue-500/0 group-hover:border-blue-500/10 pointer-events-none transition" />
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <label className="flex items-center gap-2 text-xs font-bold text-gray-400 uppercase tracking-widest">
+                <span className="w-1.5 h-1.5 bg-red-500 rounded-full" /> 
+                Engeller (Yaptıklarım)
+              </label>
+              <div className="relative group">
+                <textarea 
+                  name="commission"
+                  key={`${challenge.id}-commission`}
+                  defaultValue={todayLog?.sins_of_commission || ''}
+                  placeholder="Sürecine zarar veren, iradeni kıran hangi eylemleri yaptın?"
+                  className="w-full h-48 bg-black/40 border border-gray-800 rounded-xl p-5 text-white placeholder:text-gray-600 focus:border-red-600 focus:ring-1 focus:ring-red-900 outline-none transition resize-none leading-relaxed text-sm"
+                />
+                <div className="absolute inset-0 rounded-xl border border-red-500/0 group-hover:border-red-500/10 pointer-events-none transition" />
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-end pt-6 border-t border-gray-800">
+            <button 
+              type="submit" 
+              className="group relative bg-white text-black px-8 py-4 rounded-xl font-bold text-sm overflow-hidden hover:scale-[1.02] active:scale-95 transition-all shadow-[0_0_20px_rgba(255,255,255,0.2)]"
+            >
+              <div className="absolute inset-0 bg-gray-200 translate-y-full group-hover:translate-y-0 transition-transform duration-300" />
+              <span className="relative z-10 flex items-center gap-2">
+                {isCompleted ? 'GÜNCELLE' : 'RAPORU KAYDET'} 
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                </svg>
+              </span>
+            </button>
+          </div>
+        </form>
       </div>
-
-      <form action={submitDailyLog} className="space-y-6">
-        <input type="hidden" name="challenge_id" value={challenge.id} />
-        
-        <div className="grid gap-6">
-          {/* İHMALLER -> EKSİKLER */}
-          <div className="group">
-            <label className="flex items-center gap-2 text-sm font-bold text-blue-200 mb-3">
-              <span className="w-2 h-2 bg-blue-500 rounded-full" /> Eksikler (Yapmadıklarım)
-            </label>
-            <textarea 
-              name="omission"
-              key={`${challenge.id}-omission`}
-              defaultValue={todayLog?.sins_of_omission || ''}
-              placeholder="Bugün planlayıp da gerçekleştiremediğin şeyler nelerdi?"
-              className="w-full h-32 bg-black/50 border border-gray-700 rounded-xl p-4 text-white placeholder:text-gray-600 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition resize-none leading-relaxed"
-            />
-          </div>
-
-          {/* HATALAR -> ENGELLER */}
-          <div className="group">
-            <label className="flex items-center gap-2 text-sm font-bold text-red-200 mb-3">
-              <span className="w-2 h-2 bg-red-500 rounded-full" /> Engeller (Yaptıklarım)
-            </label>
-            <textarea 
-              name="commission"
-              key={`${challenge.id}-commission`}
-              defaultValue={todayLog?.sins_of_commission || ''}
-              placeholder="Sürecine zarar veren, yapmaman gereken ne yaptın?"
-              className="w-full h-32 bg-black/50 border border-gray-700 rounded-xl p-4 text-white placeholder:text-gray-600 focus:border-red-500 focus:ring-1 focus:ring-red-500 outline-none transition resize-none leading-relaxed"
-            />
-          </div>
-        </div>
-
-        <div className="flex justify-end pt-4 border-t border-white/5 mt-4">
-          <button type="submit" className="bg-white text-black px-8 py-3 rounded-lg font-bold text-sm hover:bg-gray-200 active:scale-95 transition-all shadow-[0_0_20px_-5px_rgba(255,255,255,0.3)] hover:scale-[1.02]">
-            {todayLog ? 'GÜNCELLE' : 'KAYDET'}
-          </button>
-        </div>
-      </form>
     </div>
-  </div>
-)
+  )
+}
 
-// --- DASHBOARD PAGE ---
-export default async function DashboardPage({ searchParams }: { searchParams: Promise<{ id?: string }> }) {
+// --- MAIN PAGE ---
+
+async function DashboardPage({ searchParams }: { searchParams: Promise<any> }) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  if (!user) {
-    return redirect('/login')
-  }
+  if (!user) redirect('/login')
 
-  // 1. Onboarding Kontrolü
   const { data: profile } = await supabase
     .from('profiles')
     .select('username')
     .eq('id', user.id)
     .single()
 
-  if (!profile?.username) {
-    redirect('/onboarding')
-  }
+  if (!profile?.username) redirect('/onboarding')
 
+  // Next.js 15+ için await ediyoruz
   const params = await searchParams
-  const selectedId = params.id
+  const selectedId = params?.id
   const today = new Date().toISOString().split('T')[0]
 
-  // 2. Kullanıcının Katıldığı Hedefleri Çek
-  // Type Casting: Supabase response can be tricky with types, explicit casting helps
   const { data: rawUserChallenges, error } = await supabase
     .from('user_challenges')
     .select(`
@@ -198,20 +250,23 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     .eq('user_id', user.id)
     .order('joined_at', { ascending: false })
 
-  // Güvenli veri dönüşümü
   const userChallenges = (rawUserChallenges as unknown as UserChallenge[]) || []
 
   if (error || userChallenges.length === 0) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center text-center p-4 pt-32 text-white">
-        <h1 className="text-3xl font-bold mb-4">Aktif Bir Hedef Yok</h1>
-        <p className="text-gray-400 mb-8">Henüz bir sürece dahil olmadın.</p>
-        <Link href="/" className="bg-red-700 text-white px-8 py-3 rounded-lg font-bold hover:bg-red-600 transition">Yeni Hedef Seç</Link>
+      <div className="min-h-screen flex flex-col items-center justify-center text-center p-4 pt-32 text-white bg-black">
+        <div className="w-20 h-20 bg-gray-900 rounded-full flex items-center justify-center mb-6 text-4xl grayscale">
+          📭
+        </div>
+        <h1 className="text-3xl font-black mb-3">Henüz Bir Hedefin Yok</h1>
+        <p className="text-gray-500 mb-8 max-w-md">Aktif bir sürecin bulunmuyor. Kendine uygun bir hedef seç ve disiplini başlat.</p>
+        <Link href="/" className="bg-red-700 text-white px-8 py-4 rounded-xl font-bold hover:bg-red-600 transition shadow-[0_0_20px_-5px_#dc2626]">
+          YENİ HEDEF SEÇ +
+        </Link>
       </div>
     )
   }
 
-  // 3. Aktif Challenge Belirleme
   let activeData = userChallenges[0]
   if (selectedId) {
     const found = userChallenges.find(uc => uc.challenge_id === selectedId)
@@ -219,16 +274,18 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   }
   
   const challenge = normalizeChallenge(activeData.challenges)
-  if (!challenge) return <div className="text-white pt-32 text-center">Veri Hatası</div>
+  
+  if (!challenge) {
+    return <div className="min-h-screen pt-32 text-center text-red-500 font-bold">Hedef verisi yüklenemedi.</div>
+  }
 
-  const isFuture = challenge.start_date > today
+  const isFuture = new Date(challenge.start_date) > new Date(today)
 
-  // 4. İstatistikleri Paralel Çek (Performans)
   const [
-    { count: totalParticipants },
-    { count: activeToday },
-    { count: myLogCount },
-    { data: todayLog }
+    statsResponse,
+    todayStatsResponse,
+    myLogResponse,
+    todayLogResponse
   ] = await Promise.all([
     supabase.from('user_challenges').select('*', { count: 'exact', head: true }).eq('challenge_id', challenge.id),
     supabase.from('daily_logs').select('*', { count: 'exact', head: true }).eq('challenge_id', challenge.id).eq('log_date', today),
@@ -236,15 +293,21 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     supabase.from('daily_logs').select('*').eq('user_id', user.id).eq('challenge_id', challenge.id).eq('log_date', today).maybeSingle()
   ])
 
+  const totalParticipants = statsResponse.count || 0
+  const activeToday = todayStatsResponse.count || 0
+  const myLogCount = myLogResponse.count || 0
+  const todayLog = todayLogResponse.data
+
   return (
-    <div className="min-h-screen text-white p-4 md:p-8 pt-32 pb-20">
+    <div className="min-h-screen text-white p-4 md:p-8 pt-32 pb-20 selection:bg-red-900 selection:text-white">
       <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8">
         
-        {/* SOL KOLON: Menü ve İstatistikler */}
-        <aside className="lg:col-span-4 space-y-6">
-          <div className="flex items-center justify-between">
+        <aside className="lg:col-span-4 space-y-8">
+          <div className="flex items-center justify-between pb-4 border-b border-gray-800">
             <h2 className="text-xs font-bold text-gray-500 uppercase tracking-widest">HEDEFLERİM</h2>
-            <Link href="/" className="text-[10px] bg-white/10 px-2 py-1 rounded text-gray-300 hover:bg-white/20 transition">+ YENİ</Link>
+            <Link href="/" className="text-[10px] bg-gray-900 border border-gray-800 px-3 py-1.5 rounded-lg text-gray-300 hover:text-white hover:border-gray-600 transition font-bold">
+              + YENİ
+            </Link>
           </div>
           
           <nav className="flex flex-col gap-3">
@@ -256,27 +319,25 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
           </nav>
 
           <StatsPanel 
-            myLogCount={myLogCount ?? 0} 
-            totalParticipants={totalParticipants ?? 0} 
-            activeToday={activeToday ?? 0} 
+            myLogCount={myLogCount} 
+            totalParticipants={totalParticipants} 
+            activeToday={activeToday} 
           />
         </aside>
 
-        {/* SAĞ KOLON: Ana İçerik */}
         <main className="lg:col-span-8">
-          <Suspense fallback={<div className="text-gray-400 p-10 text-center">Yükleniyor...</div>}>
+          <Suspense fallback={<div className="text-gray-500 py-20 text-center animate-pulse">Veriler şifreleniyor...</div>}>
             {isFuture ? (
-              <div className="bg-gray-900/50 border border-yellow-900/30 rounded-3xl p-10 text-center relative overflow-hidden animate-in fade-in duration-700">
-                  {/* Future State UI */}
+              <div className="bg-[#0f1115] border border-yellow-900/30 rounded-3xl p-10 text-center relative overflow-hidden animate-in fade-in duration-700">
                   <div className="absolute top-0 left-0 w-full h-1 bg-yellow-600 shadow-[0_0_15px_#ca8a04]"></div>
-                  <div className="mb-6 inline-block bg-yellow-500/10 p-4 rounded-full border border-yellow-500/20">
-                     <span className="text-4xl">⏳</span>
+                  <div className="mb-6 inline-flex items-center justify-center w-20 h-20 bg-yellow-500/10 rounded-full border border-yellow-500/20 text-4xl">
+                     ⏳
                   </div>
                   <h2 className="text-3xl font-black text-white mb-4 tracking-tight">HAZIRLIK AŞAMASI</h2>
-                  <p className="text-gray-400 text-lg mb-8 max-w-lg mx-auto">
-                    Bu hedef henüz başlamadı. Enerjini sakla ve başlangıç tarihine odaklan.
+                  <p className="text-gray-400 text-lg mb-8 max-w-lg mx-auto leading-relaxed">
+                    Bu operasyon henüz başlamadı. Enerjini sakla ve başlangıç tarihine odaklan.
                   </p>
-                  <div className="inline-block bg-yellow-900/20 text-yellow-500 px-6 py-3 rounded-xl font-mono text-xl font-bold border border-yellow-900/50 shadow-lg shadow-yellow-900/20">
+                  <div className="inline-block bg-yellow-900/10 text-yellow-500 px-8 py-4 rounded-xl font-mono text-xl font-bold border border-yellow-900/40 shadow-lg">
                      BAŞLANGIÇ: {new Date(challenge.start_date).toLocaleDateString('tr-TR')}
                   </div>
               </div>
@@ -289,3 +350,5 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     </div>
   )
 }
+
+export default DashboardPage

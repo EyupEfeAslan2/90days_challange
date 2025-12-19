@@ -1,19 +1,24 @@
-// Bu dosya app/login/page.tsx olmalı
-// Ve app/login/actions.ts dosyasından import etmeli
 import { login, signup } from './actions'
 
-export default function LoginPage() {
+// Next.js 15/16'da searchParams bir Promise'dir, await edilmelidir.
+interface LoginPageProps {
+  searchParams: Promise<{ message?: string }>
+}
+
+export default async function LoginPage({ searchParams }: LoginPageProps) {
+  // URL'deki hata mesajını yakala
+  const { message } = await searchParams
+
   return (
-    // fixed: Sayfayı viewport'a sabitle (Navbar'dan bağımsız)
-    // inset-0: top, right, bottom, left = 0 (Tam ekran)
-    // z-50: Navbar'ın üstünde görünsün
+    // fixed: Sayfayı viewport'a sabitle
     <div className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden bg-black">
       
       {/* --- ARKA PLAN (MORPHEUS) --- */}
       <div 
         className="absolute inset-0 z-0"
         style={{
-            backgroundImage: "url('/matrix-bg.png')",
+            // Not: public klasöründe matrix-bg.png olduğundan emin ol, yoksa siyah kalır.
+            backgroundImage: "url('/matrix-bg.png')", 
             backgroundSize: 'cover',
             backgroundPosition: 'center',
             backgroundRepeat: 'no-repeat',
@@ -27,7 +32,7 @@ export default function LoginPage() {
         <div className="bg-black/70 backdrop-blur-xl border border-white/10 rounded-2xl p-8 shadow-2xl animate-in fade-in zoom-in duration-500">
           
           {/* Başlık */}
-          <div className="text-center mb-8 space-y-2">
+          <div className="text-center mb-6 space-y-2">
             <h1 className="text-4xl font-black text-white tracking-tighter drop-shadow-lg">
               90<span className="text-red-600">DAYS</span>
             </h1>
@@ -35,6 +40,13 @@ export default function LoginPage() {
               İrade ve Disiplin Yönetimi
             </p>
           </div>
+
+          {/* --- HATA MESAJI ALANI (YENİ) --- */}
+          {message && (
+            <div className="mb-6 bg-red-900/30 border border-red-500/30 text-red-200 px-4 py-3 rounded-lg text-sm font-bold text-center animate-pulse shadow-[0_0_15px_-5px_#dc2626]">
+              ⚠️ {message}
+            </div>
+          )}
 
           <form className="space-y-5">
             

@@ -1,228 +1,232 @@
 import { createClient } from '@/utils/supabase/server'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { joinChallenge } from './actions'
-import { Suspense } from 'react'
-import { useFormStatus } from 'react-dom'
+import { joinChallenge, leaveChallenge, postChallengeComment } from '@/app/actions'
 
 // --- TYPES ---
-interface Challenge {
-  id: string
-  title: string
-  description: string | null
-  start_date: string
-  end_date: string
-}
-
 interface ChallengeStatus {
   currentDay: number
-  statusText: string
-  statusColor: string
+  totalDays: number
   progress: number
+  daysLeft: number
+  isStarted: boolean
+  isEnded: boolean
 }
 
-// --- SUB-COMPONENTS (Client Components for Form Status) ---
-// Bu bileşen sunucu tarafında render edilir ancak içindeki useFormStatus hook'u çalışsın diye 
-// normalde ayrı dosyaya alınması önerilir ("use client"). 
-// Ancak pratiklik adına inline form kullanıp butonu ayırabiliriz.
-
-function JoinSubmitButton() {
-  'use client' // Hook kullandığı için client component olmalı
-  const { pending } = useFormStatus()
-
-  return (
-    <button 
-      type="submit"
-      disabled={pending}
-      className={`
-        w-full md:w-auto px-8 py-4 rounded-xl font-bold text-lg transition-all flex items-center justify-center gap-3
-        ${pending 
-           ? 'bg-gray-800 text-gray-500 cursor-not-allowed' 
-           : 'bg-white text-black hover:bg-gray-200 shadow-[0_0_20px_rgba(255,255,255,0.3)] hover:scale-105 active:scale-95'
-        }
-      `}
-    >
-      {pending ? (
-        <>
-          <span className="w-5 h-5 border-2 border-gray-500 border-t-transparent rounded-full animate-spin"/>
-          KAYIT YAPILIYOR...
-        </>
-      ) : (
-        <>
-          DAHİL OL
-          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-          </svg>
-        </>
-      )}
-    </button>
-  )
-}
-
-// --- UTILITY ---
+// --- UTILITY: Zaman Hesaplama ---
 const calculateStatus = (start: string, end: string): ChallengeStatus => {
   const startDate = new Date(start)
   const endDate = new Date(end)
   const now = new Date()
   
   const totalDays = Math.max(1, Math.ceil((endDate.getTime() - startDate.getTime()) / (86400000)))
-  
-  if (now < startDate) {
-    const daysLeft = Math.ceil((startDate.getTime() - now.getTime()) / (86400000))
-    return {
-      currentDay: 0,
-      statusText: `${daysLeft} Gün Sonra Başlıyor`,
-      statusColor: 'text-yellow-500 border-yellow-500/20 bg-yellow-500/10',
-      progress: 0
-    }
-  }
-  
-  if (now > endDate) {
-    return {
-      currentDay: totalDays,
-      statusText: 'Tamamlandı',
-      statusColor: 'text-gray-500 border-gray-700 bg-gray-800',
-      progress: 100
-    }
-  }
-  
-  const currentDay = Math.ceil((now.getTime() - startDate.getTime()) / (86400000))
+  const diffTime = Math.abs(now.getTime() - startDate.getTime())
+  const diffDays = Math.ceil(diffTime / (86400000))
+
+  const isStarted = now >= startDate
+  const isEnded = now > endDate
+
+  let currentDay = isStarted ? diffDays : 0
+  if (currentDay > totalDays) currentDay = totalDays
+
   const progress = Math.min(100, Math.round((currentDay / totalDays) * 100))
-  
-  return {
-    currentDay,
-    statusText: 'Aktif Süreç',
-    statusColor: 'text-green-500 border-green-500/20 bg-green-500/10',
-    progress
-  }
+  const daysLeft = totalDays - currentDay
+
+  return { currentDay, totalDays, progress, daysLeft, isStarted, isEnded }
 }
 
-// --- MAIN PAGE ---
 export default async function ChallengeDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  // Next.js 16: params must be awaited
   const { id } = await params
   
+  // UUID Regex Kontrolü
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (!uuidRegex.test(id)) {
+    console.error("Geçersiz UUID formatı:", id)
+    return notFound()
+  }
+
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  // Veri Çekme
-  const { data: challenge, error } = await supabase
+  // 1. Önce Challenge'ı tek başına çek
+  const { data: challenge, error: challengeError } = await supabase
     .from('challenges')
     .select('*')
     .eq('id', id)
     .single()
 
-  if (error || !challenge) notFound()
-
-  // Katılım Kontrolü
-  let isJoined = false
-  if (user) {
-    const { data: participation } = await supabase
-      .from('user_challenges')
-      .select('id')
-      .eq('user_id', user.id)
-      .eq('challenge_id', id)
-      .maybeSingle()
-    isJoined = !!participation
+  if (challengeError || !challenge) {
+    console.error("Challenge Çekme Hatası:", challengeError)
+    return notFound()
   }
 
-  // İstatistikler (Paralel)
+  // 2. Şimdi Challenge'ın sahibini ve diğer verileri paralel çek
   const [
-    { count: totalParticipants },
-    { count: activeToday }
+    ownerProfileResponse,
+    participationResponse,
+    statsResponse,
+    commentsResponse
   ] = await Promise.all([
+    supabase.from('profiles').select('username').eq('id', challenge.created_by).single(),
+    user ? supabase.from('user_challenges').select('id').eq('user_id', user.id).eq('challenge_id', id).maybeSingle() : Promise.resolve({ data: null }),
     supabase.from('user_challenges').select('*', { count: 'exact', head: true }).eq('challenge_id', id),
-    supabase.from('daily_logs').select('*', { count: 'exact', head: true }).eq('challenge_id', id).eq('log_date', new Date().toISOString().split('T')[0])
+    supabase.from('challenge_comments').select('*, profiles(username, avatar_url)').eq('challenge_id', id).order('created_at', { ascending: false })
   ])
 
+  const ownerName = ownerProfileResponse.data?.username || 'Anonim'
+  const isJoined = !!participationResponse.data
+  const totalParticipants = statsResponse.count || 0
+  const comments = commentsResponse.data || []
+  
   const status = calculateStatus(challenge.start_date, challenge.end_date)
 
   return (
-    <div className="min-h-screen bg-black text-white p-4 md:p-8 pt-32 pb-20">
-      <div className="max-w-4xl mx-auto space-y-8">
+    <div className="min-h-screen bg-black text-white p-6 md:p-12 pt-36 pb-18 font-sans flex flex-col items-center">
+      <div className="w-full max-w-2xl space-y-5">
         
-        {/* Nav */}
-        <div className="flex justify-between items-center">
-          <Link href="/" className="text-sm font-bold text-gray-500 hover:text-white transition flex items-center gap-2">
-            <span>←</span> LİSTEYE DÖN
-          </Link>
-          <div className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest border ${status.statusColor}`}>
-            {status.statusText}
-          </div>
+        {/* NAV */}
+        <Link href="/" className="inline-flex items-center text-gray-500 hover:text-white transition gap-3 text-xs font-bold uppercase tracking-wider mb-3">
+            <span>←</span> Listeye Dön
+        </Link>
+
+        {/* --- ANA KART --- */}
+        <div className="bg-[#0f1115] border border-gray-800 rounded-xl p-6 relative overflow-hidden shadow-2xl">
+            {/* Arkaplan Efekti (Daha soft) */}
+            <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-900/10 rounded-full blur-[80px] pointer-events-none" />
+
+            <div className="relative z-10">
+                {/* Başlık */}
+                <div className="mb-6 border-b border-gray-800 pb-4">
+                    <h1 className="text-3xl font-bold text-white mb-2 leading-tight">{challenge.title}</h1>
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-3 text-xs font-mono text-gray-400">
+                        <div className="flex items-center gap-1.5">
+                            <span className="text-gray-600 uppercase font-bold tracking-wide">Oluşturan:</span>
+                            <span className="text-indigo-400 font-medium">@{ownerName}</span>
+                        </div>
+                        <div className="hidden sm:block w-1 h-1 bg-gray-800 rounded-full"></div>
+                        <div className="flex items-center gap-2">
+                            <span>{new Date(challenge.start_date).toLocaleDateString('tr-TR')}</span>
+                            <span className="text-gray-700">|</span>
+                            <span>{new Date(challenge.end_date).toLocaleDateString('tr-TR')}</span>
+                        </div>
+                    </div>
+                </div>
+
+                {/* İlerleme Durumu */}
+                <div className="mb-6">
+                    <div className="flex items-baseline justify-between mb-2">
+                         <div className="flex items-baseline gap-1">
+                            <span className="text-4xl font-bold text-white">{status.currentDay}</span>
+                            <span className="text-sm text-gray-500 font-medium">/ {status.totalDays} gün</span>
+                        </div>
+                        <div className={`text-[10px] font-bold uppercase px-2 py-1 rounded border ${status.isEnded ? 'text-red-500 border-red-900/30 bg-red-900/10' : 'text-green-500 border-green-900/30 bg-green-900/10'}`}>
+                            {status.isEnded ? 'Süreç Tamamlandı' : 'Aktif Süreç'}
+                        </div>
+                    </div>
+                    
+                    <div className="w-full bg-gray-900 h-2 rounded-full overflow-hidden border border-gray-800/50">
+                        <div 
+                            className="h-full bg-indigo-600 shadow-[0_0_10px_rgba(79,70,229,0.4)] transition-all duration-1000" 
+                            style={{ width: `${status.progress}%` }} 
+                        />
+                    </div>
+                    <div className="text-right text-[10px] font-bold text-gray-600 mt-1.5 uppercase tracking-wide">
+                        %{status.progress} Tamamlandı
+                    </div>
+                </div>
+
+                {/* Aksiyon Butonları */}
+                {isJoined ? (
+                    <div className="flex gap-3">
+                        <Link 
+                            href={`/dashboard?id=${challenge.id}`}
+                            className="flex-1 bg-white text-black hover:bg-gray-200 py-3 rounded-lg font-bold text-sm flex items-center justify-center gap-2 transition shadow-lg shadow-white/5"
+                        >
+                            <span>⚡</span> Panele Git (Raporla)
+                        </Link>
+                        <form action={async () => { 'use server'; await leaveChallenge(challenge.id) }}>
+                            <button className="h-full px-4 rounded-lg border border-red-900/30 text-red-600 hover:bg-red-900/10 hover:text-red-500 transition text-xs font-bold uppercase tracking-wider" title="Ayrıl">
+                                Ayrıl
+                            </button>
+                        </form>
+                    </div>
+                ) : (
+                    <form action={async () => { 'use server'; await joinChallenge(challenge.id) }}>
+                        <button disabled={status.isEnded} className="w-full bg-indigo-600 text-white hover:bg-indigo-500 py-3.5 rounded-lg font-bold text-sm shadow-lg shadow-indigo-900/20 transition disabled:opacity-50 disabled:cursor-not-allowed">
+                            {status.isEnded ? 'Bu Hedef Tamamlandı' : 'Bu Hedefe Katıl'}
+                        </button>
+                    </form>
+                )}
+            </div>
         </div>
 
-        {/* Hero Card */}
-        <div className="relative bg-[#0a0a0a] border border-gray-800 rounded-3xl p-8 md:p-12 overflow-hidden">
-          {/* Ambiyans */}
-          <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none" />
-
-          <div className="relative z-10 space-y-6">
-            <h1 className="text-4xl md:text-6xl font-black tracking-tighter text-white leading-[0.9]">
-              {challenge.title}
-            </h1>
-            
-            <div className="flex flex-wrap gap-6 text-sm font-mono text-gray-400 border-b border-gray-800 pb-6">
-              <div className="flex flex-col">
-                <span className="text-[10px] uppercase tracking-wide text-gray-600">BAŞLANGIÇ</span>
-                <span className="text-white font-bold">{new Date(challenge.start_date).toLocaleDateString('tr-TR')}</span>
-              </div>
-              <div className="w-[1px] bg-gray-800"></div>
-              <div className="flex flex-col">
-                <span className="text-[10px] uppercase tracking-wide text-gray-600">BİTİŞ</span>
-                <span className="text-white font-bold">{new Date(challenge.end_date).toLocaleDateString('tr-TR')}</span>
-              </div>
+        {/* --- İSTATİSTİKLER --- */}
+        <div className="bg-[#0f1115] border border-gray-800 rounded-xl p-5">
+            <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-4 flex items-center gap-2">
+                📊 Süreç İstatistikleri
+            </h3>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                <div className="bg-black/40 border border-gray-800 p-3 rounded-lg text-center">
+                    <div className="text-xl font-bold text-white">{totalParticipants}</div>
+                    <div className="text-[9px] font-bold text-gray-600 uppercase mt-1">Katılımcı</div>
+                </div>
+                <div className="bg-black/40 border border-gray-800 p-3 rounded-lg text-center">
+                    <div className="text-xl font-bold text-white">{status.daysLeft}</div>
+                    <div className="text-[9px] font-bold text-gray-600 uppercase mt-1">Kalan Gün</div>
+                </div>
+                 <div className="hidden md:block bg-black/40 border border-gray-800 p-3 rounded-lg text-center">
+                    <div className="text-xl font-bold text-gray-500">-</div>
+                    <div className="text-[9px] font-bold text-gray-600 uppercase mt-1">Fire Yok</div>
+                </div>
             </div>
-
-            <div className="space-y-2">
-               <div className="flex justify-between text-xs font-bold text-gray-500 uppercase">
-                 <span>İlerleme</span>
-                 <span>%{status.progress}</span>
-               </div>
-               <div className="w-full bg-gray-900 h-2 rounded-full overflow-hidden">
-                 <div className="h-full bg-white transition-all duration-1000" style={{ width: `${status.progress}%` }} />
-               </div>
-            </div>
-
-            <p className="text-gray-300 text-lg leading-relaxed max-w-2xl font-light">
-              {challenge.description || "Bu hedef için detaylı açıklama girilmedi."}
-            </p>
-
-            {/* Action Area */}
-            <div className="pt-4">
-              {isJoined ? (
-                <Link 
-                  href={`/dashboard?id=${challenge.id}`}
-                  className="inline-flex items-center gap-3 bg-green-900/20 border border-green-900/50 text-green-500 px-8 py-4 rounded-xl font-bold text-lg hover:bg-green-900/30 transition-all w-full md:w-auto justify-center"
-                >
-                  <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"/>
-                  SÜRECE DAHİLSİN - RAPORLA
-                </Link>
-              ) : (
-                <form action={joinChallenge}>
-                  <input type="hidden" name="challenge_id" value={challenge.id} />
-                  <JoinSubmitButton />
-                </form>
-              )}
-            </div>
-          </div>
         </div>
 
-        {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="bg-[#0a0a0a] border border-gray-800 p-6 rounded-2xl text-center">
-             <div className="text-3xl font-black text-white mb-1">{totalParticipants || 0}</div>
-             <div className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Toplam Katılımcı</div>
-          </div>
-          <div className="bg-[#0a0a0a] border border-gray-800 p-6 rounded-2xl text-center">
-             <div className="text-3xl font-black text-green-500 mb-1">{activeToday || 0}</div>
-             <div className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Bugün Aktif</div>
-          </div>
-          <div className="bg-[#0a0a0a] border border-gray-800 p-6 rounded-2xl text-center">
-             <div className="text-3xl font-black text-gray-400 mb-1">
-                {status.currentDay > 0 ? `Gün ${status.currentDay}` : 'Hazırlık'}
-             </div>
-             <div className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Süreç Durumu</div>
-          </div>
+        {/* --- FORUM --- */}
+        <div className="bg-[#0f1115] border border-gray-800 rounded-xl p-5">
+            <h3 className="text-sm font-bold text-white mb-5 flex items-center gap-2">
+                💬 Tartışma & Motivasyon <span className="text-xs font-normal text-gray-500">({comments.length})</span>
+            </h3>
+
+            {user && isJoined && (
+                <div className="mb-6">
+                    <form action={postChallengeComment} className="flex gap-2">
+                        <input type="hidden" name="challenge_id" value={challenge.id} />
+                        <div className="relative flex-1">
+                            <input 
+                                name="content" 
+                                placeholder="Düşüncelerini paylaş..." 
+                                className="w-full bg-black/30 border border-gray-700 rounded-lg px-4 py-2.5 text-sm text-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-900 outline-none transition placeholder:text-gray-600"
+                                required 
+                                autoComplete="off"
+                            />
+                        </div>
+                        <button className="bg-gray-800 hover:bg-gray-700 text-white px-5 rounded-lg text-xs font-bold uppercase tracking-wide transition">
+                            Gönder
+                        </button>
+                    </form>
+                </div>
+            )}
+
+            <div className="space-y-3">
+                {comments.map((comment: any) => (
+                    <div key={comment.id} className="flex gap-3 p-3 rounded-lg bg-black/20 border border-gray-800/40">
+                        <div className="w-8 h-8 rounded-full bg-indigo-900/20 text-indigo-400 border border-indigo-500/20 flex items-center justify-center text-xs font-bold shrink-0">
+                            {comment.profiles?.username?.[0]?.toUpperCase() || '?'}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-0.5">
+                                <span className="font-bold text-indigo-300 text-xs truncate">@{comment.profiles?.username || 'Anonim'}</span>
+                                <span className="text-[9px] text-gray-600 font-mono">{new Date(comment.created_at).toLocaleDateString('tr-TR')}</span>
+                            </div>
+                            <p className="text-gray-300 text-sm leading-snug break-words">{comment.content}</p>
+                        </div>
+                    </div>
+                ))}
+                
+                {comments.length === 0 && (
+                     <div className="text-center py-6 text-gray-600 text-xs italic">Henüz bir paylaşım yapılmadı.</div>
+                )}
+            </div>
         </div>
 
       </div>
