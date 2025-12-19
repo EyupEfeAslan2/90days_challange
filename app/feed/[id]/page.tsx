@@ -51,7 +51,6 @@ export default async function PostDetailPage({ params }: { params: Promise<{ id:
   const myVote = votes.find(v => v.user_id === user.id)?.vote_type
 
   // Yazar Adı
-  // @ts-expect-error: Supabase join tipi bazen array/obj karmaşası yaratabilir, güvenli erişim:
   const authorName = post.profiles?.username || 'Anonim Üye'
 
   return (
