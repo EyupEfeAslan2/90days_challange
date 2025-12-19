@@ -5,14 +5,12 @@ import { revalidatePath } from "next/cache"
 import { redirect } from "next/navigation"
 
 // --- 1. CHALLENGE'A KATILMA (JOIN) ---
-// --- 1. CHALLENGE'A KATILMA (JOIN) ---
 export async function joinChallenge(challengeId: string) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   
   if (!user) redirect('/login')
 
-  // Veritabanına ekle
   const { error } = await supabase
     .from('user_challenges')
     .insert({
@@ -21,24 +19,19 @@ export async function joinChallenge(challengeId: string) {
     })
     .select()
 
-  // Hata Yönetimi
   if (error) {
-    // Eğer hata "Zaten Kayıtlı" (23505) değilse logla
     if (error.code !== '23505') {
       console.error('Katılma Hatası:', error.message)
-      // Burada "throw error" yaparsak sistem hatası sayfasına gider.
-      // Onun yerine sessizce dashboard'a yönlendirelim veya return edelim.
       return 
     }
   }
 
-  // İşlem başarılıysa veya zaten kayıtlıysa Dashboard'a at
   revalidatePath('/')
   revalidatePath(`/challenge/${challengeId}`)
   redirect(`/dashboard?id=${challengeId}`)
 }
 
-// --- 2. CHALLENGE'DAN AYRILMA (LEAVE) [YENİ] ---
+// --- 2. CHALLENGE'DAN AYRILMA (LEAVE) ---
 export async function leaveChallenge(challengeId: string) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -67,9 +60,6 @@ export async function postChallengeComment(formData: FormData) {
 
   if (!content || content.trim().length === 0) return
 
-  // TS FIX: 'challenge_comments' tablosu type dosyasında olmadığı için
-  // TypeScript'e bu string'i 'any' olarak işaretleyip geçiyoruz.
-  // Bu sayede tüm proje güvenliğini kapatmadan sadece burayı çözüyoruz.
   await supabase.from('challenge_comments' as any).insert({
     user_id: user.id,
     challenge_id: challengeId,
@@ -108,7 +98,22 @@ export async function submitDailyLog(formData: FormData) {
   
   if (!user) return
 
+  // GÜVENLİK KİLİDİ: Önce Challenge tarihini kontrol et
+  const { data: challenge } = await supabase
+    .from('challenges')
+    .select('end_date')
+    .eq('id', challengeId)
+    .single()
+
+  if (!challenge) return
+
   const today = new Date().toISOString().split('T')[0]
+  
+  // Eğer Bugün > Bitiş Tarihi ise işlemi durdur (Abort Mission)
+  if (new Date(today) > new Date(challenge.end_date)) {
+    console.error("Süresi dolmuş göreve rapor girilemez.")
+    return // Sessizce reddet veya hata fırlat
+  }
 
   const { error } = await supabase.from('daily_logs').upsert({
     user_id: user.id,

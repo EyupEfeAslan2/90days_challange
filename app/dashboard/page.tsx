@@ -42,7 +42,7 @@ const calculateStreakPercentage = (logCount: number, maxDays: number = 90): numb
 
 // --- LOCAL COMPONENTS ---
 
-// 1. Sidebar Item (GÜNCELLENDİ: Çıkış Butonu Buraya Eklendi)
+// 1. Sidebar Item
 const DashboardSidebarItem = ({ challenge, isActive }: { challenge: Challenge; isActive: boolean }) => (
   <div className="relative group">
     {/* Kart Linki */}
@@ -57,7 +57,7 @@ const DashboardSidebarItem = ({ challenge, isActive }: { challenge: Challenge; i
       `}
     >
       <div className="flex justify-between items-start relative z-10">
-        <div className="flex-1 min-w-0 pr-6"> {/* Buton için sağdan boşluk bıraktık */}
+        <div className="flex-1 min-w-0 pr-6"> 
           <h3 className={`font-bold truncate text-sm ${isActive ? 'text-white' : 'text-gray-400 group-hover:text-gray-200'}`}>
             {challenge.title}
           </h3>
@@ -73,14 +73,14 @@ const DashboardSidebarItem = ({ challenge, isActive }: { challenge: Challenge; i
       {!isActive && <div className="absolute inset-0 bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />}
     </Link>
 
-    {/* SİLME BUTONU (Sadece Hover Yapınca Gözükür) */}
+    {/* SİLME BUTONU */}
     <div className="absolute top-2 right-2 z-20 opacity-0 group-hover:opacity-100 transition-opacity">
         <DeleteButton 
             onDelete={async () => {
                'use server'
                await leaveChallenge(challenge.id)
             }}
-            title="" // Tooltip veya boş bırakabilirsin, icon yeterli
+            title="" 
             className="w-6 h-6 p-0 flex items-center justify-center bg-black/50 hover:bg-red-900 text-gray-400 hover:text-white border border-gray-700 hover:border-red-500 rounded-full backdrop-blur-md"
         />
     </div>
@@ -128,7 +128,7 @@ const StatsPanel = ({ myLogCount, totalParticipants, activeToday }: { myLogCount
   )
 }
 
-// 3. Daily Log Form (GÜNCELLENDİ: Buradaki Çıkış Butonu Kaldırıldı)
+// 3. Daily Log Form
 const DailyLogForm = ({ challenge, todayLog }: { challenge: Challenge; todayLog: DailyLog | null }) => {
   const isCompleted = todayLog?.is_completed
   
@@ -235,7 +235,6 @@ async function DashboardPage({ searchParams }: { searchParams: Promise<any> }) {
 
   if (!profile?.username) redirect('/onboarding')
 
-  // Next.js 15+ için await ediyoruz
   const params = await searchParams
   const selectedId = params?.id
   const today = new Date().toISOString().split('T')[0]
@@ -279,7 +278,9 @@ async function DashboardPage({ searchParams }: { searchParams: Promise<any> }) {
     return <div className="min-h-screen pt-32 text-center text-red-500 font-bold">Hedef verisi yüklenemedi.</div>
   }
 
+  // ZAMAN KONTROLLERİ
   const isFuture = new Date(challenge.start_date) > new Date(today)
+  const isEnded = new Date(today) > new Date(challenge.end_date)
 
   const [
     statsResponse,
@@ -327,7 +328,9 @@ async function DashboardPage({ searchParams }: { searchParams: Promise<any> }) {
 
         <main className="lg:col-span-8">
           <Suspense fallback={<div className="text-gray-500 py-20 text-center animate-pulse">Veriler şifreleniyor...</div>}>
-            {isFuture ? (
+            
+            {/* 1. GELECEK SENARYOSU */}
+            {isFuture && (
               <div className="bg-[#0f1115] border border-yellow-900/30 rounded-3xl p-10 text-center relative overflow-hidden animate-in fade-in duration-700">
                   <div className="absolute top-0 left-0 w-full h-1 bg-yellow-600 shadow-[0_0_15px_#ca8a04]"></div>
                   <div className="mb-6 inline-flex items-center justify-center w-20 h-20 bg-yellow-500/10 rounded-full border border-yellow-500/20 text-4xl">
@@ -341,9 +344,30 @@ async function DashboardPage({ searchParams }: { searchParams: Promise<any> }) {
                      BAŞLANGIÇ: {new Date(challenge.start_date).toLocaleDateString('tr-TR')}
                   </div>
               </div>
-            ) : (
+            )}
+
+            {/* 2. BİTMİŞ SENARYOSU */}
+            {isEnded && (
+               <div className="bg-[#0f1115] border border-gray-800 rounded-3xl p-10 text-center relative overflow-hidden animate-in fade-in duration-700 grayscale">
+                  <div className="absolute top-0 left-0 w-full h-1 bg-gray-600"></div>
+                  <div className="mb-6 inline-flex items-center justify-center w-20 h-20 bg-gray-800 rounded-full border border-gray-700 text-4xl">
+                     🏁
+                  </div>
+                  <h2 className="text-3xl font-black text-gray-300 mb-4 tracking-tight">OPERASYON TAMAMLANDI</h2>
+                  <p className="text-gray-500 text-lg mb-8 max-w-lg mx-auto leading-relaxed">
+                    Bu meydan okuma için süre doldu. Artık yeni rapor girişi yapılamaz. Geçmiş verilerini inceleyebilirsin.
+                  </p>
+                  <div className="inline-block bg-gray-900 text-gray-400 px-8 py-4 rounded-xl font-mono text-sm font-bold border border-gray-800">
+                     BİTİŞ: {new Date(challenge.end_date).toLocaleDateString('tr-TR')}
+                  </div>
+               </div>
+            )}
+
+            {/* 3. AKTİF SENARYO */}
+            {!isFuture && !isEnded && (
               <DailyLogForm challenge={challenge} todayLog={todayLog as DailyLog | null} />
             )}
+
           </Suspense>
         </main>
       </div>
