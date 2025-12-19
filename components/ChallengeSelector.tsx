@@ -1,3 +1,4 @@
+// components/ChallengeSelector.tsx
 'use client'
 
 import Link from 'next/link'
@@ -5,16 +6,23 @@ import { useSearchParams } from 'next/navigation'
 import { useState, useEffect, useRef } from 'react'
 
 // Types
-type ChallengeSummary = {
-  challenge_id: string
-  challenges: {
-    title: string
-    end_date?: string
-  } | null
+type Challenge = {
+  title: string
+  end_date?: string
 }
 
+type UserChallenge = {
+  challenge_id: string
+  challenges: Challenge | null
+}
+
+type ChipIconType = '🔥' | '⚠️' | '📋'
+
+// Constants
+const SCROLL_AMOUNT = 200
+
 // Utility Functions
-const calculateDaysRemaining = (endDate?: string): number | null => {
+function calculateDaysRemaining(endDate?: string): number | null {
   if (!endDate) return null
   
   const end = new Date(endDate)
@@ -25,14 +33,17 @@ const calculateDaysRemaining = (endDate?: string): number | null => {
   return diffDays > 0 ? diffDays : 0
 }
 
-const getChallengeIcon = (isActive: boolean, daysRemaining: number | null) => {
+function getChallengeIcon(
+  isActive: boolean, 
+  daysRemaining: number | null
+): ChipIconType {
   if (isActive) return '🔥'
   if (daysRemaining !== null && daysRemaining < 7) return '⚠️'
   return '📋'
 }
 
 // Sub-components
-const ScrollButton = ({ 
+function ScrollButton({ 
   direction, 
   onClick,
   visible 
@@ -40,21 +51,25 @@ const ScrollButton = ({
   direction: 'left' | 'right'
   onClick: () => void
   visible: boolean
-}) => {
+}) {
   if (!visible) return null
+
+  const isLeft = direction === 'left'
 
   return (
     <button
       onClick={onClick}
       className={`
-        absolute top-1/2 -translate-y-1/2 z-10 w-10 h-10 
-        bg-gray-900/90 backdrop-blur-sm border border-gray-800 
-        rounded-full flex items-center justify-center
-        hover:bg-gray-800 hover:border-gray-700 transition-all
-        shadow-lg hover:scale-110 active:scale-95
-        ${direction === 'left' ? 'left-0' : 'right-0'}
+        absolute top-1/2 -translate-y-1/2 z-10 
+        w-10 h-10 bg-gray-900/90 backdrop-blur-sm 
+        border border-gray-800 rounded-full 
+        flex items-center justify-center
+        transition-all duration-300
+        hover:bg-gray-800 hover:border-gray-700 hover:scale-110 
+        active:scale-95 shadow-lg
+        ${isLeft ? 'left-0' : 'right-0'}
       `}
-      aria-label={`Scroll ${direction}`}
+      aria-label={`${direction === 'left' ? 'Sola' : 'Sağa'} kaydır`}
     >
       <svg 
         className="w-5 h-5 text-gray-400" 
@@ -62,34 +77,37 @@ const ScrollButton = ({
         viewBox="0 0 24 24" 
         stroke="currentColor"
       >
-        {direction === 'left' ? (
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-        ) : (
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-        )}
+        <path 
+          strokeLinecap="round" 
+          strokeLinejoin="round" 
+          strokeWidth={2} 
+          d={isLeft ? "M15 19l-7-7 7-7" : "M9 5l7 7-7 7"} 
+        />
       </svg>
     </button>
   )
 }
 
-const ChallengeChip = ({ 
+function ChallengeChip({ 
   challenge,
   isActive,
   daysRemaining
 }: { 
-  challenge: ChallengeSummary
+  challenge: UserChallenge
   isActive: boolean
   daysRemaining: number | null
-}) => {
+}) {
   const icon = getChallengeIcon(isActive, daysRemaining)
+  const showDaysLabel = daysRemaining !== null && daysRemaining < 30
 
   return (
     <Link
       href={`/dashboard?id=${challenge.challenge_id}`}
       scroll={false}
       className={`
-        group relative flex-shrink-0 px-5 py-3 rounded-xl border text-sm font-bold 
-        transition-all duration-300 overflow-hidden
+        group relative flex-shrink-0 px-5 py-3 rounded-xl 
+        border text-sm font-bold overflow-hidden
+        transition-all duration-300
         ${isActive 
           ? 'bg-gradient-to-r from-red-600 to-red-500 border-red-500 text-white shadow-[0_0_20px_-5px_#dc2626] scale-105' 
           : 'bg-gray-900/50 border-gray-800 text-gray-400 hover:text-white hover:border-gray-600 hover:bg-gray-900'
@@ -103,11 +121,13 @@ const ChallengeChip = ({
 
       {/* Content */}
       <span className="relative z-10 flex items-center gap-2">
-        <span className={isActive ? 'animate-pulse' : ''}>{icon}</span>
+        <span className={isActive ? 'animate-pulse' : ''}>
+          {icon}
+        </span>
         <span className="truncate max-w-[150px] md:max-w-[200px]">
           {challenge.challenges?.title}
         </span>
-        {daysRemaining !== null && daysRemaining < 30 && (
+        {showDaysLabel && (
           <span className={`
             text-[10px] px-2 py-0.5 rounded-full font-bold
             ${isActive 
@@ -125,35 +145,60 @@ const ChallengeChip = ({
   )
 }
 
-const EmptyState = () => (
-  <div className="flex items-center justify-center py-8 px-4 bg-gray-900/30 border border-dashed border-gray-800 rounded-xl">
-    <div className="text-center space-y-2">
-      <span className="text-4xl block">📭</span>
-      <p className="text-sm text-gray-500">Henüz bir göreve katılmadınız</p>
-      <Link 
-        href="/"
-        className="inline-block text-xs text-red-500 hover:text-red-400 underline"
-      >
-        Görevleri keşfedin
-      </Link>
+function EmptyState() {
+  return (
+    <div className="flex items-center justify-center py-8 px-4 bg-gray-900/30 border border-dashed border-gray-800 rounded-xl">
+      <div className="text-center space-y-2">
+        <span className="text-4xl block">📭</span>
+        <p className="text-sm text-gray-500">Henüz bir göreve katılmadınız</p>
+        <Link 
+          href="/"
+          className="inline-block text-xs text-red-500 hover:text-red-400 underline transition-colors"
+        >
+          Görevleri keşfedin
+        </Link>
+      </div>
     </div>
-  </div>
-)
+  )
+}
+
+function GradientFade({ 
+  direction, 
+  visible 
+}: { 
+  direction: 'left' | 'right'
+  visible: boolean 
+}) {
+  if (!visible) return null
+
+  const isLeft = direction === 'left'
+
+  return (
+    <div 
+      className={`
+        absolute top-0 bottom-4 w-12 pointer-events-none
+        ${isLeft 
+          ? 'left-0 bg-gradient-to-r from-black via-black/50 to-transparent' 
+          : 'right-0 bg-gradient-to-l from-black via-black/50 to-transparent'
+        }
+      `}
+    />
+  )
+}
 
 // Main Component
 export default function ChallengeSelector({ 
   userChallenges 
 }: { 
-  userChallenges: ChallengeSummary[] 
+  userChallenges: UserChallenge[] 
 }) {
   const searchParams = useSearchParams()
-  const currentId = searchParams.get('id')
   const containerRef = useRef<HTMLDivElement>(null)
   
   const [showLeftScroll, setShowLeftScroll] = useState(false)
   const [showRightScroll, setShowRightScroll] = useState(false)
 
-  // Active challenge ID (default to first if no ID in URL)
+  const currentId = searchParams.get('id')
   const activeId = currentId || userChallenges[0]?.challenge_id
 
   // Check scroll availability
@@ -171,11 +216,10 @@ export default function ChallengeSelector({
     return () => window.removeEventListener('resize', checkScroll)
   }, [userChallenges])
 
-  // Scroll functions
   const scroll = (direction: 'left' | 'right') => {
     if (!containerRef.current) return
 
-    const scrollAmount = direction === 'left' ? -200 : 200
+    const scrollAmount = direction === 'left' ? -SCROLL_AMOUNT : SCROLL_AMOUNT
     containerRef.current.scrollBy({ left: scrollAmount, behavior: 'smooth' })
     
     setTimeout(checkScroll, 300)
@@ -188,14 +232,12 @@ export default function ChallengeSelector({
 
   return (
     <div className="relative w-full">
-      {/* Left Scroll Button */}
+      {/* Scroll Buttons */}
       <ScrollButton 
         direction="left" 
         onClick={() => scroll('left')}
         visible={showLeftScroll}
       />
-
-      {/* Right Scroll Button */}
       <ScrollButton 
         direction="right" 
         onClick={() => scroll('right')}
@@ -233,12 +275,8 @@ export default function ChallengeSelector({
       </div>
 
       {/* Gradient Fade Edges */}
-      {showLeftScroll && (
-        <div className="absolute left-0 top-0 bottom-4 w-12 bg-gradient-to-r from-black via-black/50 to-transparent pointer-events-none" />
-      )}
-      {showRightScroll && (
-        <div className="absolute right-0 top-0 bottom-4 w-12 bg-gradient-to-l from-black via-black/50 to-transparent pointer-events-none" />
-      )}
+      <GradientFade direction="left" visible={showLeftScroll} />
+      <GradientFade direction="right" visible={showRightScroll} />
 
       {/* Challenge Count */}
       {userChallenges.length > 1 && (
@@ -249,10 +287,3 @@ export default function ChallengeSelector({
     </div>
   )
 }
-
-// CSS to hide scrollbar (add to globals.css)
-/*
-.scrollbar-hide::-webkit-scrollbar {
-  display: none;
-}
-*/
