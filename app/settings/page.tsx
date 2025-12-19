@@ -2,21 +2,40 @@ import { createClient } from '@/utils/supabase/server'
 import { redirect } from 'next/navigation'
 import { updateProfile } from './actions'
 import Link from 'next/link'
-import { Suspense } from 'react'
+
+// --- 1. TİP TANIMI (DOĞRUSU BU) ---
+// Veritabanından tam olarak ne beklediğimizi tanımlıyoruz.
+// "Any" diyip geçmek yerine, yapıyı kurallara bağlıyoruz.
+interface ProfileData {
+  username: string | null
+  created_at: string
+}
 
 // --- MAIN PAGE ---
-export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ error?: string, success?: string }> }) {
+export default async function SettingsPage({ 
+  searchParams 
+}: { 
+  searchParams: Promise<{ error?: string, success?: string }> 
+}) {
   const supabase = await createClient()
+  
+  // Next.js 15 standardı: searchParams await edilir
   const params = await searchParams
   
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const { data: profile } = await supabase
+  // Veriyi çekiyoruz
+  const { data: rawProfile } = await supabase
     .from('profiles')
     .select('username, created_at')
     .eq('id', user.id)
     .single()
+
+  // --- 2. TİP GÜVENLİ DÖNÜŞÜM ---
+  // Buraya gelen verinin 'ProfileData' şablonuna uyduğunu belirtiyoruz.
+  // Artık TypeScript 'username'in varlığından emin olduğu için hata vermez.
+  const profile = rawProfile as ProfileData | null
 
   return (
     <div className="min-h-screen bg-black text-white flex items-center justify-center p-4 pt-24 pb-20">
@@ -36,7 +55,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
           </div>
 
           {/* Feedback Messages */}
-          {params.error && (
+          {params?.error && (
              <div className="p-4 mb-6 bg-red-900/20 border border-red-900/50 rounded-lg text-red-400 text-sm">
                 {params.error === 'short' && 'Kullanıcı adı çok kısa.'}
                 {params.error === 'exists' && 'Bu kullanıcı adı zaten kullanımda.'}
@@ -44,7 +63,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
              </div>
           )}
           
-          {params.success && (
+          {params?.success && (
              <div className="p-4 mb-6 bg-green-900/20 border border-green-900/50 rounded-lg text-green-400 text-sm">
                 Profil başarıyla güncellendi.
              </div>
@@ -60,6 +79,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
               <input
                 name="username"
                 type="text"
+                // Tip tanımlı olduğu için artık burada hata almazsın
                 defaultValue={profile?.username || ''}
                 required
                 className="w-full bg-black border border-gray-700 focus:border-white rounded-xl p-4 text-white transition-all font-mono"
