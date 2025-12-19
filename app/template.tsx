@@ -5,9 +5,13 @@ import { motion } from 'framer-motion'
 export default function Template({ children }: { children: React.ReactNode }) {
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }} // Sayfa 20px aşağıdan ve şeffaf başlar
-      animate={{ opacity: 1, y: 0 }}  // Yerine oturur ve görünür olur
-      transition={{ duration: 0.5, ease: "easeOut" }} // Yarım saniyede yumuşakça
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ 
+        duration: 0.4, 
+        ease: [0.22, 1, 0.36, 1] // Custom ease curve for smooth feel
+      }}
+      className="w-full"
     >
       {children}
     </motion.div>

@@ -7,20 +7,21 @@ import { redirect } from 'next/navigation'
 export async function submitDailyLog(formData: FormData) {
   const supabase = await createClient()
 
-  // 1. Kullanıcıyı al
+  // 1. Auth Kontrolü
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) {
     return redirect('/dashboard?error=unauthorized')
   }
 
-  // 2. Formdan verileri çek
+  // 2. Veri Doğrulama ve Hazırlama
   const challenge_id = formData.get('challenge_id') as string
-  const omission = formData.get('omission') as string // Yapmam gerekenler
-  const commission = formData.get('commission') as string // Yapmamam gerekenler
+  const omission = formData.get('omission') as string // Yapılmayanlar (İhmaller)
+  const commission = formData.get('commission') as string // Yapılan Hatalar
 
-  // 3. Veritabanına "Upsert" yap (Varsa güncelle, yoksa ekle)
-  // user_id, challenge_id ve log_date (bugün) kombinasyonu unique olduğu için
-  // aynı gün içinde tekrar basarsa günceller.
+  if (!challenge_id) return
+
+  // 3. Veritabanı İşlemi (Upsert)
+  // Aynı gün için kayıt varsa günceller, yoksa oluşturur.
   const { error } = await supabase
     .from('daily_logs')
     .upsert({
@@ -29,20 +30,17 @@ export async function submitDailyLog(formData: FormData) {
       log_date: new Date().toISOString().split('T')[0], // YYYY-MM-DD
       sins_of_omission: omission,
       sins_of_commission: commission,
-      is_completed: true // Günlük girildiyse o gün tamamlanmış sayılır
+      is_completed: true
     }, {
-      onConflict: 'user_id, challenge_id, log_date' // Çakışma kuralı
+      onConflict: 'user_id, challenge_id, log_date'
     })
 
   if (error) {
-    console.error('Günlük hatası:', error)
-    // Hata varsa URL'ye error parametresiyle dön
+    console.error('Günlük Log Hatası:', error)
     return redirect('/dashboard?error=failed')
   }
 
-  // Başarılıysa önbelleği temizle
+  // 4. Cache Temizle ve Yönlendir
   revalidatePath('/dashboard')
-  
-  // URL'ye 'message=saved' ekleyerek yönlendir (ToastWatcher bunu yakalayacak)
   redirect('/dashboard?message=saved')
 }

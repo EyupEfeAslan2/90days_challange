@@ -6,31 +6,32 @@ import { revalidatePath } from "next/cache"
 
 export async function updateUsername(formData: FormData) {
   const supabase = await createClient()
-  
-  // 1. Kullanıcıyı Kontrol Et
+
+  // 1. Auth Check
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) {
-    redirect('/login')
-  }
+  if (!user) redirect('/login')
 
-  // 2. Form Verisini Al ve Doğrula
-  const username = formData.get('username') as string
+  const username = (formData.get('username') as string)?.trim()
 
-  // Sunucu tarafı validasyonu (Güvenlik için şart)
-  if (!username || username.length < 3 || username.length > 20) {
-    // Hata durumunda (Şimdilik direkt redirect yapıyoruz, ileride toast eklenebilir)
-    console.error("Geçersiz kullanıcı adı uzunluğu")
-    return
-  }
-
+  // 2. Validation
   const usernameRegex = /^[a-zA-Z0-9_]+$/
-  if (!usernameRegex.test(username)) {
-    console.error("Geçersiz karakterler")
-    return
+  if (!username || username.length < 3 || username.length > 20 || !usernameRegex.test(username)) {
+    return redirect('/onboarding?error=validation')
   }
 
-  // 3. Veritabanını Güncelle
-  // Profil zaten 'handle_new_user' trigger'ı ile oluşmuştu, sadece username'i update ediyoruz.
+  // 3. Duplicate Check
+  const { data: existing } = await supabase
+    .from('profiles')
+    .select('id')
+    .eq('username', username)
+    .neq('id', user.id) // Kendi eski username'i ise sorun yok (update senaryosu için)
+    .single()
+
+  if (existing) {
+    return redirect('/onboarding?error=duplicate')
+  }
+
+  // 4. Update
   const { error } = await supabase
     .from('profiles')
     .update({ 
@@ -40,17 +41,11 @@ export async function updateUsername(formData: FormData) {
     .eq('id', user.id)
 
   if (error) {
-    console.error('Username update error:', error)
-    // Eğer kullanıcı adı "UNIQUE" ise ve başkası almışsa burada hata verir.
-    // MVP aşamasında bunu es geçiyoruz ama ileride kullanıcıya "Bu isim alınmış" demeliyiz.
-    return 
+    console.error('Update Error:', error)
+    return redirect('/onboarding?error=database')
   }
 
-  // 4. Cache Temizliği
-  // Tüm sitenin cache'ini temizle ki Navbar'da isim anında güncellensin
+  // 5. Success
   revalidatePath('/', 'layout')
-
-  // 5. Yönlendirme
-  // İsim belirlendiğine göre artık savaşa (Feed veya Dashboard) gidebilir.
-  redirect('/feed')
+  redirect('/dashboard') // Feed yerine Dashboard'a yönlendirmek daha mantıklı başlangıç için
 }

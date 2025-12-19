@@ -3,23 +3,38 @@
 import { createClient } from '@/utils/supabase/server'
 import { redirect } from 'next/navigation'
 
-export async function createChallenge(formData: FormData) {
+// Form State Tipi
+interface FormState {
+  message: string
+  errors?: Record<string, string[]>
+}
+
+export async function createChallenge(prevState: FormState, formData: FormData): Promise<FormState> {
   const supabase = await createClient()
 
-  // 1. Kullanıcı oturumunu kontrol et
+  // 1. Auth Kontrolü
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) {
     return redirect('/login')
   }
 
-  // 2. Form verilerini al
+  // 2. Veri Doğrulama (Basit Manuel Kontrol)
   const title = formData.get('title') as string
-  const description = formData.get('description') as string
   const start_date = formData.get('start_date') as string
   const end_date = formData.get('end_date') as string
-  const visibility = formData.get('visibility') as string // "public" veya null gelir
+  const description = formData.get('description') as string
+  const visibility = formData.get('visibility') // "on" or null
 
-  // 3. Challenge'ı veritabanına ekle
+  if (!title || !start_date || !end_date) {
+    return { message: 'Lütfen tüm zorunlu alanları doldurun.' }
+  }
+
+  // Tarih mantık kontrolü
+  if (new Date(end_date) <= new Date(start_date)) {
+    return { message: 'Bitiş tarihi başlangıç tarihinden sonra olmalıdır.' }
+  }
+
+  // 3. Insert İşlemi
   const { data: challenge, error } = await supabase
     .from('challenges')
     .insert({
@@ -28,18 +43,17 @@ export async function createChallenge(formData: FormData) {
       start_date,
       end_date,
       created_by: user.id,
-      is_public: visibility === 'on', // Checkbox işaretliyse 'on' gelir
+      is_public: visibility === 'on',
     })
     .select()
     .single()
 
   if (error) {
-    console.error('Hata:', error)
-    // Gerçek hayatta burada hata mesajı döndürmek lazım ama şimdilik redirect
-    return redirect('/?error=challenge-create-failed')
+    console.error('Create Error:', error)
+    return { message: 'Hedef oluşturulurken bir hata oluştu. Lütfen tekrar dene.' }
   }
 
-  // 4. Oluşturan kişiyi otomatik olarak katılımcı yap (Lider de savaşır!)
+  // 4. Kurucuyu Katılımcı Olarak Ekle
   await supabase
     .from('user_challenges')
     .insert({
@@ -47,6 +61,6 @@ export async function createChallenge(formData: FormData) {
       challenge_id: challenge.id
     })
 
-  // 5. Ana sayfaya geri dön (Listeyi güncel görelim)
-  redirect('/')
+  // 5. Başarılı -> Yönlendir
+  redirect('/dashboard') // Direkt dashboard'a gitsin, yeni hedefini görsün.
 }

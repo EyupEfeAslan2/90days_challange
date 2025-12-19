@@ -3,159 +3,101 @@ import { redirect } from 'next/navigation'
 import { updateUsername } from './actions'
 import { Suspense } from 'react'
 
-// Sub-components
-const WelcomeHeader = () => (
-  <div className="text-center space-y-4 animate-in fade-in slide-in-from-top duration-700">
-    <div className="inline-block">
-      <div className="w-16 h-16 mx-auto bg-gradient-to-br from-red-600 to-red-800 rounded-full flex items-center justify-center mb-4 shadow-lg shadow-red-900/50">
-        <svg className="w-8 h-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-        </svg>
-      </div>
-    </div>
-    <h1 className="text-3xl md:text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-white to-gray-400 mb-2">
-      Aramıza Hoşgeldin
-    </h1>
-    <div className="h-0.5 w-24 bg-gradient-to-r from-transparent via-red-600 to-transparent mx-auto mb-4" />
-    <p className="text-gray-400 text-sm md:text-base leading-relaxed max-w-sm mx-auto">
-      Topluluğa katılmadan önce seni tanıyacağımız bir <span className="text-red-400 font-semibold">kod adı</span> belirle.
-    </p>
-  </div>
-)
+// --- SUB COMPONENTS ---
 
-const UsernameField = () => (
-  <div className="space-y-3 animate-in fade-in slide-in-from-bottom duration-700 delay-200">
-    <label 
-      htmlFor="username"
-      className="block text-sm font-bold text-gray-300 uppercase tracking-wide"
-    >
-      Kullanıcı Adı (Rumuz)
-    </label>
-    <div className="relative group">
-      <div className="absolute inset-0 bg-gradient-to-r from-red-600/20 to-purple-600/20 rounded-lg blur opacity-0 group-focus-within:opacity-100 transition-opacity duration-300" />
-      <input
-        id="username"
-        name="username"
-        type="text"
-        placeholder="Örn: IronWill, PhoenixRise, SpartanMind"
-        required
-        minLength={3}
-        maxLength={20}
-        pattern="^[a-zA-Z0-9_]+$"
-        title="Sadece harf, rakam ve alt çizgi kullanabilirsiniz"
-        autoComplete="username"
-        className="relative w-full bg-black border-2 border-gray-700 rounded-lg p-4 text-white placeholder:text-gray-600 focus:border-red-600 focus:ring-2 focus:ring-red-600/50 outline-none transition-all"
-      />
-    </div>
-    <div className="flex items-start gap-2 text-xs text-gray-500">
-      <svg className="w-4 h-4 text-gray-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+const Header = () => (
+  <div className="text-center space-y-4 animate-in fade-in slide-in-from-top duration-700">
+    <div className="w-16 h-16 mx-auto bg-gradient-to-br from-red-600 to-red-900 rounded-2xl flex items-center justify-center mb-4 shadow-xl shadow-red-900/30 rotate-3 hover:rotate-6 transition-transform">
+      <svg className="w-8 h-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
       </svg>
-      <p>3-20 karakter arası, sadece harf, rakam ve alt çizgi. Daha sonra değiştirebilirsin.</p>
     </div>
+    <h1 className="text-3xl md:text-4xl font-black text-white tracking-tight">
+      Sisteme Başlangıç
+    </h1>
+    <p className="text-gray-400 text-sm md:text-base leading-relaxed max-w-sm mx-auto">
+      Toplulukta seni temsil edecek benzersiz bir <span className="text-red-500 font-bold">Kullanıcı Adı</span> belirle.
+    </p>
   </div>
 )
 
 const SubmitButton = () => (
   <button 
     type="submit"
-    className="group relative w-full bg-gradient-to-r from-red-700 to-red-600 hover:from-red-600 hover:to-red-500 text-white font-bold py-4 rounded-lg transition-all text-lg shadow-lg shadow-red-900/30 hover:shadow-red-900/60 transform hover:scale-[1.02] active:scale-95 overflow-hidden animate-in fade-in slide-in-from-bottom duration-700 delay-300"
+    className="group relative w-full bg-white text-black font-bold py-4 rounded-xl transition-all shadow-lg hover:bg-gray-200 transform hover:scale-[1.02] active:scale-95 overflow-hidden mt-2"
   >
     <span className="relative z-10 flex items-center justify-center gap-2">
-      Sisteme Giriş Yap
+      KAYDI TAMAMLA
       <svg className="w-5 h-5 group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
       </svg>
     </span>
-    <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/10 to-white/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700" />
   </button>
 )
 
-const FormSkeleton = () => (
-  <div className="space-y-6 animate-pulse">
-    <div className="space-y-3">
-      <div className="h-4 bg-gray-800 rounded w-32" />
-      <div className="h-14 bg-gray-800 rounded-lg" />
-      <div className="h-3 bg-gray-800 rounded w-full" />
-    </div>
-    <div className="h-14 bg-gray-800 rounded-lg" />
-  </div>
-)
+const ErrorMessage = ({ error }: { error?: string }) => {
+  if (!error) return null
+  
+  const messages: Record<string, string> = {
+    'validation': 'Kullanıcı adı 3-20 karakter olmalı ve sadece harf/rakam içermelidir.',
+    'duplicate': 'Bu kullanıcı adı zaten alınmış.',
+    'database': 'Veritabanı hatası oluştu, lütfen tekrar deneyin.',
+    'unexpected': 'Beklenmeyen bir hata oluştu.'
+  }
 
-const FeatureList = () => (
-  <div className="mt-8 pt-8 border-t border-gray-800 space-y-4 animate-in fade-in slide-in-from-bottom duration-700 delay-400">
-    <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wide text-center mb-6">
-      Seni Neler Bekliyor
-    </h3>
-    <div className="grid gap-3">
-      {[
-        { icon: '🎯', text: 'Kişisel görevler ve hedefler', color: 'from-blue-600/20 to-blue-800/20' },
-        { icon: '📊', text: 'İlerleme takibi ve istatistikler', color: 'from-green-600/20 to-green-800/20' },
-        { icon: '🏆', text: 'Liderlik tablosu ve rozetler', color: 'from-yellow-600/20 to-yellow-800/20' },
-        { icon: '🔥', text: 'Aktif topluluk ve motivasyon', color: 'from-red-600/20 to-red-800/20' }
-      ].map((feature, index) => (
-        <div 
-          key={index}
-          className="flex items-center gap-3 p-3 bg-gray-950/50 border border-gray-800 rounded-lg hover:border-gray-700 transition-colors group"
-          style={{ 
-            animationDelay: `${(index + 5) * 100}ms`,
-            animation: 'fadeIn 0.5s ease-out forwards',
-            opacity: 0
-          }}
-        >
-          <div className={`w-10 h-10 bg-gradient-to-br ${feature.color} rounded-lg flex items-center justify-center text-xl flex-shrink-0 group-hover:scale-110 transition-transform`}>
-            {feature.icon}
-          </div>
-          <p className="text-sm text-gray-300 group-hover:text-white transition-colors">
-            {feature.text}
-          </p>
-        </div>
-      ))}
+  return (
+    <div className="p-3 bg-red-900/20 border border-red-900/50 rounded-lg text-red-400 text-xs font-bold text-center animate-in fade-in">
+      {messages[error] || 'Bir hata oluştu.'}
     </div>
-  </div>
-)
+  )
+}
 
-// Main Component
-export default async function OnboardingPage() {
+// --- MAIN PAGE ---
+export default async function OnboardingPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
+  const params = await searchParams
   
-  // Redirect if not authenticated
   if (!user) redirect('/login')
 
   return (
     <div className="min-h-screen bg-black flex flex-col items-center justify-center p-4 text-white relative overflow-hidden">
       
-      {/* Background Effects */}
-      <div className="absolute inset-0 bg-gradient-to-b from-red-950/10 via-black to-black pointer-events-none" />
-      <div className="absolute top-0 left-1/4 w-96 h-96 bg-red-600/5 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-purple-600/5 rounded-full blur-3xl pointer-events-none" />
+      {/* Ambiyans */}
+      <div className="absolute top-1/4 right-1/4 w-96 h-96 bg-red-600/10 rounded-full blur-[100px] pointer-events-none" />
+      <div className="absolute bottom-1/4 left-1/4 w-96 h-96 bg-blue-600/5 rounded-full blur-[100px] pointer-events-none" />
       
-      {/* Main Content */}
-      <div className="relative z-10 w-full max-w-lg">
-        <div className="space-y-8 bg-gray-900/80 backdrop-blur-xl border border-gray-800 p-8 md:p-10 rounded-2xl shadow-2xl hover:border-gray-700 transition-all duration-500">
+      <div className="relative z-10 w-full max-w-md">
+        <div className="space-y-8 bg-[#0a0a0a] border border-gray-800 p-8 md:p-10 rounded-3xl shadow-2xl">
           
-          {/* Header */}
-          <WelcomeHeader />
+          <Header />
+          
+          <ErrorMessage error={params.error} />
 
-          {/* Form */}
-          <Suspense fallback={<FormSkeleton />}>
-            <form action={updateUsername} className="space-y-6">
-              <UsernameField />
+          <form action={updateUsername} className="space-y-6">
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">Kullanıcı Adı</label>
+              <input
+                name="username"
+                type="text"
+                placeholder="Örn: StoicMind"
+                required
+                minLength={3}
+                maxLength={20}
+                pattern="^[a-zA-Z0-9_]+$"
+                autoComplete="off"
+                className="w-full bg-black border border-gray-700 focus:border-red-600 rounded-xl p-4 text-white placeholder:text-gray-700 outline-none transition-all font-bold tracking-wide"
+              />
+              <p className="text-[10px] text-gray-600 ml-1">
+                * Sadece harf, rakam ve alt çizgi.
+              </p>
+            </div>
+            
+            <Suspense fallback={<div className="h-14 bg-gray-800 rounded-xl animate-pulse" />}>
               <SubmitButton />
-            </form>
-          </Suspense>
+            </Suspense>
+          </form>
 
-          {/* Features List */}
-          <FeatureList />
-
-        </div>
-
-        {/* Bottom Info */}
-        <div className="mt-6 text-center animate-in fade-in slide-in-from-bottom duration-700 delay-500">
-          <p className="text-xs text-gray-600">
-            Kullanıcı adın topluluğa açık olacak. Gerçek ismini kullanma.
-          </p>
         </div>
       </div>
     </div>

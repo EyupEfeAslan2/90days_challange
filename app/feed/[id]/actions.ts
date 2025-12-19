@@ -1,33 +1,38 @@
 'use server'
+
 import { createClient } from '@/utils/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 
-// --- YORUM EKLEME OPERASYONU ---
+// --- YORUM EKLEME ---
 export async function addComment(formData: FormData) {
-  const content = formData.get('content') as string
-  const postId = formData.get('post_id') as string
+  const content = formData.get('content')
+  const postId = formData.get('post_id')
   
+  // Basit validasyon
+  if (!content || typeof content !== 'string' || !content.trim() || !postId) return
+
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  if (!user || !content || !content.trim()) return
+  if (!user) return
 
   const { error } = await supabase.from('forum_comments').insert({
-    post_id: postId,
+    post_id: postId as string,
     user_id: user.id,
     content: content
   })
 
   if (error) {
-    console.error('Yorum Hatası:', error)
+    console.error('Yorum Ekleme Hatası:', error)
     return
+    // Hata durumunda UI'a geri bildirim göndermek için return state kullanılabilir
   }
 
   revalidatePath(`/feed/${postId}`)
 }
 
-// --- OYLAMA OPERASYONU (LIKE/DISLIKE) ---
+// --- OYLAMA (LIKE/DISLIKE) ---
 export async function votePost(postId: string, voteType: 'up' | 'down') {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -44,10 +49,14 @@ export async function votePost(postId: string, voteType: 'up' | 'down') {
 
   if (existingVote) {
     if (existingVote.vote_type === voteType) {
-      // Zaten aynı oyu vermiş -> Oyu geri çek (Sil)
-      await supabase.from('forum_likes').delete().eq('user_id', user.id).eq('post_id', postId)
+      // Aynı oya tekrar basıldı -> Oyu Geri Al
+      await supabase
+        .from('forum_likes')
+        .delete()
+        .eq('user_id', user.id)
+        .eq('post_id', postId)
     } else {
-      // Farklı oy vermiş (Like'tan Dislike'a dönüyor) -> Güncelle
+      // Farklı oya basıldı -> Güncelle (Up -> Down veya tam tersi)
       await supabase
         .from('forum_likes')
         .update({ vote_type: voteType })
@@ -55,7 +64,7 @@ export async function votePost(postId: string, voteType: 'up' | 'down') {
         .eq('post_id', postId)
     }
   } else {
-    // Hiç oyu yok -> Yeni ekle
+    // Hiç oy yok -> Yeni Oluştur
     await supabase.from('forum_likes').insert({
       user_id: user.id,
       post_id: postId,
@@ -65,14 +74,16 @@ export async function votePost(postId: string, voteType: 'up' | 'down') {
 
   revalidatePath(`/feed/${postId}`)
 }
-// --- KONU SİLME OPERASYONU ---
+
+// --- KONU SİLME ---
 export async function deletePost(postId: string) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
   if (!user) return
 
-  // Sadece kendi postunu silebilir
+  // Row Level Security (RLS) policies normalde bunu engeller ama
+  // explicit olarak user_id kontrolü yapmak clean code prensibidir.
   const { error } = await supabase
     .from('forum_posts')
     .delete()
@@ -84,6 +95,7 @@ export async function deletePost(postId: string) {
     return
   }
 
-  // Silince listeye (Feed'e) geri dön
+  // Listeyi güncelle ve yönlendir
+  revalidatePath('/feed')
   redirect('/feed')
 }

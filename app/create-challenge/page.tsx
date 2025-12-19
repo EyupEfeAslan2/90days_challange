@@ -1,12 +1,19 @@
 'use client'
 
 import { createChallenge } from './actions'
-import { useFormStatus } from 'react-dom'
-import { useState, useEffect } from 'react'
+import { useFormStatus } from 'react-dom' // Next.js 16 / React 19
+import { useActionState, useState, useEffect } from 'react'
+
+// --- TYPES ---
+const initialState = {
+  message: '',
+  errors: {} as Record<string, string[]>,
+}
+
+// --- SUB-COMPONENTS ---
 
 /**
- * Optimized Submit Button Component with Loading State
- * Separated for proper useFormStatus hook usage
+ * Submit Button: Formun loading durumunu dinler.
  */
 function SubmitButton() {
   const { pending } = useFormStatus()
@@ -19,29 +26,20 @@ function SubmitButton() {
         group relative flex-[2] py-4 px-6 rounded-xl font-bold 
         transition-all duration-300 ease-out overflow-hidden
         ${pending 
-          ? 'bg-gradient-to-r from-gray-700 to-gray-600 cursor-not-allowed text-gray-400' 
-          : 'bg-gradient-to-r from-red-600 via-red-700 to-red-800 hover:from-red-500 hover:via-red-600 hover:to-red-700 text-white shadow-lg shadow-red-900/30 hover:shadow-xl hover:shadow-red-900/40 hover:scale-[1.02] active:scale-[0.98]'
+          ? 'bg-gray-800 cursor-not-allowed text-gray-400 border border-gray-700' 
+          : 'bg-white text-black hover:bg-gray-200 shadow-[0_0_20px_rgba(255,255,255,0.2)] hover:scale-[1.02] active:scale-[0.98]'
         }
       `}
-      aria-label={pending ? 'Yarışma oluşturuluyor' : 'Yarışmayı başlat'}
     >
-      {/* Animated background effect */}
-      {!pending && (
-        <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700 ease-out" />
-      )}
-      
       <span className="relative flex items-center justify-center gap-2">
         {pending ? (
           <>
-            <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-            </svg>
-            OLUŞTURULUYOR...
+            <div className="w-5 h-5 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+            HEDEF OLUŞTURULUYOR...
           </>
         ) : (
           <>
-            YARIŞMAYI BAŞLAT
+            HEDEFİ BAŞLAT
             <span className="text-xl group-hover:translate-x-1 transition-transform duration-300">🚀</span>
           </>
         )}
@@ -51,9 +49,9 @@ function SubmitButton() {
 }
 
 /**
- * Input Field Component with Enhanced Styling
+ * Reusable Input Component
  */
-function InputField({ label, name, type = "text", required = false, placeholder, rows }) {
+function InputField({ label, name, type = "text", required = false, placeholder, rows }: { label: string, name: string, type?: string, required?: boolean, placeholder?: string, rows?: number }) {
   const [isFocused, setIsFocused] = useState(false)
   const InputComponent = rows ? 'textarea' : 'input'
   
@@ -63,12 +61,13 @@ function InputField({ label, name, type = "text", required = false, placeholder,
         htmlFor={name}
         className={`
           block text-xs font-bold uppercase tracking-widest transition-colors duration-200
-          ${isFocused ? 'text-red-500' : 'text-gray-500'}
+          ${isFocused ? 'text-white' : 'text-gray-500'}
         `}
       >
         {label}
         {required && <span className="text-red-500 ml-1">*</span>}
       </label>
+      {/* @ts-expect-error: Dynamic component props typing simplified for brevity */}
       <InputComponent
         id={name}
         name={name}
@@ -79,184 +78,133 @@ function InputField({ label, name, type = "text", required = false, placeholder,
         onFocus={() => setIsFocused(true)}
         onBlur={() => setIsFocused(false)}
         className={`
-          w-full bg-black/50 backdrop-blur-sm border rounded-xl p-4 text-white 
-          transition-all duration-300 ease-out
-          focus:outline-none focus:ring-2 focus:ring-red-600/50 focus:border-red-600 focus:bg-black/70
-          hover:border-gray-600
-          ${isFocused ? 'border-red-600 shadow-lg shadow-red-900/20' : 'border-gray-700'}
+          w-full bg-black border rounded-xl p-4 text-white 
+          transition-all duration-300 ease-out outline-none
+          placeholder:text-gray-700
+          ${isFocused 
+            ? 'border-white shadow-[0_0_15px_rgba(255,255,255,0.1)]' 
+            : 'border-gray-800 hover:border-gray-600'
+          }
           ${rows ? 'resize-none min-h-[120px]' : ''}
-          placeholder:text-gray-600
         `}
       />
     </div>
   )
 }
 
-/**
- * Date Input Component with Enhanced UX
- */
-function DateField({ label, name, required = false }) {
-  const [isFocused, setIsFocused] = useState(false)
-  
-  return (
-    <div className="space-y-2">
-      <label 
-        htmlFor={name}
-        className={`
-          block text-xs font-bold uppercase tracking-widest transition-colors duration-200
-          ${isFocused ? 'text-red-500' : 'text-gray-500'}
-        `}
-      >
-        {label}
-        {required && <span className="text-red-500 ml-1">*</span>}
-      </label>
-      <div className="relative">
-        <input
-          id={name}
-          name={name}
-          type="date"
-          required={required}
-          onFocus={() => setIsFocused(true)}
-          onBlur={() => setIsFocused(false)}
-          className={`
-            w-full bg-black/50 backdrop-blur-sm border rounded-xl p-4 text-white 
-            transition-all duration-300 ease-out
-            focus:outline-none focus:ring-2 focus:ring-red-600/50 focus:border-red-600 focus:bg-black/70
-            hover:border-gray-600
-            ${isFocused ? 'border-red-600 shadow-lg shadow-red-900/20' : 'border-gray-700'}
-            [color-scheme:dark]
-          `}
-        />
-      </div>
-    </div>
-  )
-}
-
-/**
- * Main Challenge Creation Page Component
- * Enterprise-grade with accessibility and UX enhancements
- */
+// --- MAIN PAGE ---
 export default function CreateChallengePage() {
   const [mounted, setMounted] = useState(false)
+  // useActionState: Form sonucunu ve hatalarını yönetir
+  const [state, formAction] = useActionState(createChallenge, initialState)
 
-  // Animation on mount
   useEffect(() => {
     setMounted(true)
   }, [])
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-black via-gray-900 to-black text-white flex items-center justify-center p-4 relative overflow-hidden">
-      {/* Animated background effects */}
-      <div className="absolute inset-0 opacity-30">
-        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-red-600/20 rounded-full blur-[128px] animate-pulse" />
-        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-red-900/20 rounded-full blur-[128px] animate-pulse" style={{ animationDelay: '1s' }} />
+    <div className="min-h-screen bg-black text-white flex items-center justify-center p-4 relative overflow-hidden">
+      
+      {/* Ambiyans Işıkları */}
+      <div className="absolute inset-0 pointer-events-none">
+        <div className="absolute top-0 left-1/4 w-[500px] h-[500px] bg-red-900/10 rounded-full blur-[128px]" />
+        <div className="absolute bottom-0 right-1/4 w-[500px] h-[500px] bg-blue-900/5 rounded-full blur-[128px]" />
       </div>
 
-      {/* Main content card */}
       <div 
         className={`
           relative w-full max-w-2xl 
-          bg-gray-900/80 backdrop-blur-xl border border-gray-800/50 
+          bg-[#0a0a0a] border border-gray-800 
           rounded-3xl p-8 md:p-10
-          shadow-2xl shadow-black/50
+          shadow-2xl
           transition-all duration-700 ease-out
           ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}
         `}
       >
-        {/* Header Section */}
+        {/* Header */}
         <header className="mb-10 text-center space-y-3">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-red-600 to-red-800 rounded-2xl mb-4 shadow-lg shadow-red-900/50">
-            <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+          <div className="inline-flex items-center justify-center w-12 h-12 bg-white/5 rounded-xl mb-2 border border-white/10">
+            <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>
           </div>
           
-          <h1 className="text-4xl md:text-5xl font-black tracking-tight">
-            YENİ <span className="text-transparent bg-clip-text bg-gradient-to-r from-red-500 to-red-700">CEPHE</span> AÇ
+          <h1 className="text-3xl md:text-4xl font-black tracking-tight text-white">
+            YENİ HEDEF BELİRLE
           </h1>
           
-          <p className="text-gray-400 text-sm md:text-base max-w-md mx-auto">
-            Kendine ve diğerlerine meydan oku. Hedeflerini belirle, sınırlarını zorla.
+          <p className="text-gray-500 text-sm max-w-md mx-auto">
+            Sınırlarını zorla. 90 günlük irade yolculuğunu başlat.
           </p>
         </header>
 
-        {/* Challenge Form */}
-        <form action={createChallenge} className="space-y-7">
-          {/* Title Input */}
+        {/* Form */}
+        <form action={formAction} className="space-y-7">
+          
           <InputField
-            label="Yarışma Adı"
+            label="Hedef Başlığı"
             name="title"
-            type="text"
             required
             placeholder="Örn: 90 Günlük Yazılım Kampı"
           />
 
-          {/* Description Textarea */}
           <InputField
-            label="Açıklama"
+            label="Detaylar & Kurallar"
             name="description"
             rows={4}
-            placeholder="Yarışmanın kurallarını, hedeflerini ve detaylarını buraya yazın..."
+            placeholder="Bu süreçte neleri yapacak, neleri yapmayacaksın?"
           />
 
-          {/* Date Range Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <DateField
+            <InputField
               label="Başlangıç Tarihi"
               name="start_date"
+              type="date"
               required
             />
-            <DateField
+            <InputField
               label="Bitiş Tarihi"
               name="end_date"
+              type="date"
               required
             />
           </div>
 
-          {/* Visibility Toggle */}
-          <div className="relative">
-            <div className="flex items-start gap-4 p-5 bg-gradient-to-br from-black/40 to-black/20 backdrop-blur-sm rounded-2xl border border-gray-800/50 hover:border-gray-700/50 transition-all duration-300 group cursor-pointer">
-              <input 
-                type="checkbox" 
-                name="visibility" 
-                id="visibility" 
-                defaultChecked
-                className="mt-1 w-5 h-5 accent-red-600 rounded-md cursor-pointer transition-transform duration-200 hover:scale-110"
-              />
-              <label htmlFor="visibility" className="flex-1 cursor-pointer select-none">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="font-bold text-white group-hover:text-red-500 transition-colors duration-200">
-                    Herkese Açık Yayınla
-                  </span>
-                  <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                </div>
-                <p className="text-xs text-gray-500">
-                  Yarışmanız herkese açık olacak ve diğer kullanıcılar katılabilecek
-                </p>
-              </label>
-            </div>
+          {/* Visibility Switch */}
+          <div className="flex items-center gap-4 p-4 rounded-xl border border-gray-800 bg-white/5">
+            <input 
+              type="checkbox" 
+              name="visibility" 
+              id="visibility" 
+              defaultChecked
+              className="w-5 h-5 accent-white cursor-pointer"
+            />
+            <label htmlFor="visibility" className="flex-1 cursor-pointer select-none">
+              <div className="font-bold text-white text-sm">Herkese Açık Yayınla</div>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Diğer üyeler bu sürece dahil olabilir ve liderlik tablosunda yarışabilir.
+              </p>
+            </label>
           </div>
 
-          {/* Action Buttons */}
-          <div className="flex flex-col sm:flex-row gap-4 pt-6">
+          {/* Hata Mesajı Gösterimi */}
+          {state?.message && (
+            <div className="p-4 bg-red-900/20 border border-red-900/50 rounded-lg text-red-500 text-sm font-bold text-center animate-in fade-in">
+              {state.message}
+            </div>
+          )}
+
+          {/* Actions */}
+          <div className="flex flex-col sm:flex-row gap-4 pt-4 border-t border-gray-800">
             <a 
               href="/" 
-              className="flex-1 py-4 px-6 text-center rounded-xl border-2 border-gray-700 hover:border-gray-600 hover:bg-gray-800/50 text-gray-300 hover:text-white font-bold transition-all duration-300 ease-out hover:scale-[1.02] active:scale-[0.98]"
+              className="flex-1 py-4 px-6 text-center rounded-xl border border-gray-800 hover:bg-gray-900 text-gray-400 hover:text-white font-bold transition-all"
             >
-              İptal
+              Vazgeç
             </a>
             <SubmitButton />
           </div>
         </form>
-
-        {/* Info Footer */}
-        <div className="mt-8 pt-6 border-t border-gray-800/50">
-          <p className="text-xs text-gray-600 text-center">
-            Yarışma oluşturduktan sonra düzenleyebilir ve yönetebilirsiniz
-          </p>
-        </div>
       </div>
     </div>
   )
