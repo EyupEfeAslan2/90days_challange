@@ -67,7 +67,6 @@ function InputField({ label, name, type = "text", required = false, placeholder,
         {label}
         {required && <span className="text-red-500 ml-1">*</span>}
       </label>
-      {/* @ts-expect-error: Dynamic component props typing simplified for brevity */}
       <InputComponent
         id={name}
         name={name}
