@@ -3,14 +3,77 @@
 import { createClient } from "@/utils/supabase/server"
 import { revalidatePath } from "next/cache"
 import { redirect } from "next/navigation"
+import { headers } from "next/headers"
 
-// --- 1. CHALLENGE'A KATILMA (JOIN) ---
+// ==========================================
+// 1. KİMLİK DOĞRULAMA (AUTH) İŞLEMLERİ
+// ==========================================
+
+export async function login(formData: FormData) {
+  const supabase = await createClient()
+  const email = formData.get('email') as string
+  const password = formData.get('password') as string
+
+  const { error } = await supabase.auth.signInWithPassword({
+    email,
+    password,
+  })
+
+  if (error) {
+    // Login hatasını Client tarafında yakalamak için fırlatıyoruz
+    throw new Error(error.message)
+  }
+
+  revalidatePath('/', 'layout')
+  redirect('/dashboard')
+}
+
+export async function signup(formData: FormData) {
+  const supabase = await createClient()
+  const email = formData.get('email') as string
+  const password = formData.get('password') as string
+  
+  // Origin'i al (Email onayı linki için lazım olabilir)
+  const origin = (await headers()).get('origin')
+
+  if (!email || !password) {
+    return { error: 'E-posta ve şifre gereklidir.' }
+  }
+
+  const { error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: {
+      emailRedirectTo: `${origin}/auth/callback`,
+    },
+  })
+
+  if (error) {
+    return { error: error.message }
+  }
+
+  // ÖNEMLİ: Redirect YOK. Sadece başarı mesajı dönüyoruz.
+  // Frontend (login/page.tsx) bunu görünce sekmeyi değiştirecek.
+  return { success: true }
+}
+
+export async function signOut() {
+  const supabase = await createClient()
+  await supabase.auth.signOut()
+  redirect('/login')
+}
+
+// ==========================================
+// 2. MEYDAN OKUMA (CHALLENGE) İŞLEMLERİ
+// ==========================================
+
 export async function joinChallenge(challengeId: string) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   
   if (!user) redirect('/login')
 
+  // Veritabanına ekle
   const { error } = await supabase
     .from('user_challenges')
     .insert({
@@ -19,19 +82,21 @@ export async function joinChallenge(challengeId: string) {
     })
     .select()
 
+  // Hata Yönetimi
   if (error) {
+    // Eğer hata "Zaten Kayıtlı" (23505) değilse logla
     if (error.code !== '23505') {
       console.error('Katılma Hatası:', error.message)
       return 
     }
   }
 
+  // İşlem başarılıysa veya zaten kayıtlıysa Dashboard'a at
   revalidatePath('/')
   revalidatePath(`/challenge/${challengeId}`)
   redirect(`/dashboard?id=${challengeId}`)
 }
 
-// --- 2. CHALLENGE'DAN AYRILMA (LEAVE) ---
 export async function leaveChallenge(challengeId: string) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -46,30 +111,9 @@ export async function leaveChallenge(challengeId: string) {
 
   revalidatePath('/')
   revalidatePath(`/challenge/${challengeId}`)
+  revalidatePath('/dashboard')
 }
 
-// --- 3. YORUM YAPMA (COMMENT) ---
-export async function postChallengeComment(formData: FormData) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  
-  if (!user) return
-
-  const challengeId = formData.get('challenge_id') as string
-  const content = formData.get('content') as string
-
-  if (!content || content.trim().length === 0) return
-
-  await supabase.from('challenge_comments' as any).insert({
-    user_id: user.id,
-    challenge_id: challengeId,
-    content: content.trim()
-  })
-
-  revalidatePath(`/challenge/${challengeId}`)
-}
-
-// --- 4. CHALLENGE SİLME (DELETE) ---
 export async function deleteChallenge(challengeId: string) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -87,7 +131,31 @@ export async function deleteChallenge(challengeId: string) {
   revalidatePath('/')
 }
 
-// --- 5. GÜNLÜK RAPORLAMA (DASHBOARD) ---
+// ==========================================
+// 3. İÇERİK VE ETKİLEŞİM İŞLEMLERİ
+// ==========================================
+
+export async function postChallengeComment(formData: FormData) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  
+  if (!user) return
+
+  const challengeId = formData.get('challenge_id') as string
+  const content = formData.get('content') as string
+
+  if (!content || content.trim().length === 0) return
+
+  // TypeScript fix: 'challenge_comments' tablosu eksikse 'as any' ile geçiyoruz
+  await supabase.from('challenge_comments' as any).insert({
+    user_id: user.id,
+    challenge_id: challengeId,
+    content: content.trim()
+  })
+
+  revalidatePath(`/challenge/${challengeId}`)
+}
+
 export async function submitDailyLog(formData: FormData) {
   const challengeId = formData.get('challenge_id') as string
   const omission = formData.get('omission') as string
@@ -109,10 +177,10 @@ export async function submitDailyLog(formData: FormData) {
 
   const today = new Date().toISOString().split('T')[0]
   
-  // Eğer Bugün > Bitiş Tarihi ise işlemi durdur (Abort Mission)
+  // Eğer Bugün > Bitiş Tarihi ise işlemi durdur
   if (new Date(today) > new Date(challenge.end_date)) {
     console.error("Süresi dolmuş göreve rapor girilemez.")
-    return // Sessizce reddet veya hata fırlat
+    return 
   }
 
   const { error } = await supabase.from('daily_logs').upsert({

@@ -1,10 +1,9 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { login, signup } from './actions' // Senin actions dosyanın yolu
-import { createClient } from '@/utils/supabase/client'
+import { login, signup } from '@/app/actions'
 import { useRouter } from 'next/navigation'
-import { toast } from 'sonner' // Toast mesajları için
+import { toast } from 'sonner' 
 
 export default function LoginPage() {
   const [mode, setMode] = useState<'login' | 'register'>('login')
@@ -16,25 +15,39 @@ export default function LoginPage() {
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     
-    // Form verilerini al
     const formData = new FormData(event.currentTarget)
     
     startTransition(async () => {
       try {
         if (mode === 'login') {
-          // Giriş İşlemi
+          // --- GİRİŞ İŞLEMİ ---
           await login(formData)
-          // Action içinde redirect olduğu için burası başarılıysa yönlenir
+          // Başarılı olursa 'login' action'ı redirect atar.
+          // Kod buraya ulaşmaz.
         } else {
-          // Kayıt İşlemi
-          await signup(formData)
-          // Signup action'ı genelde redirect yapmazsa buraya düşer
-          toast.success('Kayıt başarılı! Lütfen giriş yapın.')
-          setMode('login')
+          // --- KAYIT İŞLEMİ ---
+          // Signup artık bir obje dönüyor { success: true } veya { error: '...' }
+          const result = await signup(formData)
+          
+          if (result?.error) {
+            // Sunucudan gelen net hata mesajı
+            toast.error(result.error)
+          } else {
+            // Başarılıysa
+            toast.success('Kayıt başarılı! Lütfen giriş yapın.')
+            // Formu temizle (opsiyonel) ve Giriş sekmesine geç
+            setMode('login') 
+          }
         }
-      } catch (error) {
-        // Hata yakalama
-        toast.error('İşlem sırasında bir hata oluştu.')
+      } catch (error: any) {
+        // Redirect hatası (NEXT_REDIRECT) bir hata değildir, Next.js'in çalışma şeklidir.
+        // Eğer hata mesajı 'NEXT_REDIRECT' içeriyorsa hata basma.
+        if (error.message === 'NEXT_REDIRECT' || error.message?.includes('NEXT_REDIRECT')) {
+            return
+        }
+        
+        // Gerçek bir hata varsa bas
+        toast.error('İşlem başarısız. Bilgilerinizi kontrol edin.')
       }
     })
   }
