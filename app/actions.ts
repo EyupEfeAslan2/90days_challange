@@ -11,21 +11,23 @@ import { headers } from "next/headers"
 
 export async function login(formData: FormData) {
   const supabase = await createClient()
-  const email = formData.get('email') as string
-  const password = formData.get('password') as string
 
-  const { error } = await supabase.auth.signInWithPassword({
-    email,
-    password,
-  })
-
-  if (error) {
-    // Login hatasını Client tarafında yakalamak için fırlatıyoruz
-    throw new Error(error.message)
+  // ... (email password alma kısımları aynı)
+  const data = {
+    email: formData.get('email') as string,
+    password: formData.get('password') as string,
   }
 
+  const { error } = await supabase.auth.signInWithPassword(data)
+
+  if (error) {
+    // ... hata yönetimi
+    throw error
+  }
+
+  // ✅ BAŞARILIYSA DİREKT DASHBOARD'A FIRLAT
   revalidatePath('/', 'layout')
-  redirect('/dashboard')
+  redirect('/dashboard') 
 }
 
 export async function signup(formData: FormData) {

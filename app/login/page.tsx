@@ -4,14 +4,16 @@ import { useState, useTransition } from 'react'
 import { login, signup } from '@/app/actions'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner' 
-import Link from 'next/link' // ✅ EKLENDİ
+import Link from 'next/link'
 
 export default function LoginPage() {
   const [mode, setMode] = useState<'login' | 'register'>('login')
   const [showPassword, setShowPassword] = useState(false)
   const [isPending, startTransition] = useTransition()
   const router = useRouter()
-
+  // ✅ YENİ: Mail kontrol ekranı durumu
+  const [checkEmail, setCheckEmail] = useState(false)
+  
   // Form Gönderim İşleyicisi
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -30,8 +32,8 @@ export default function LoginPage() {
           if (result?.error) {
             toast.error(result.error)
           } else {
-            toast.success('Kayıt başarılı! Lütfen giriş yapın.')
-            setMode('login') 
+            // ✅ YENİ: Başarılıysa mail ekranını aç
+            setCheckEmail(true)
           }
         }
       } catch (error: any) {
@@ -41,6 +43,36 @@ export default function LoginPage() {
         toast.error('İşlem başarısız. Bilgilerinizi kontrol edin.')
       }
     })
+  }
+
+  // ✅ YENİ: Eğer mail gönderildiyse bu ekranı göster
+  if (checkEmail) {
+    return (
+      <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center p-4 relative overflow-hidden font-sans">
+        {/* Arkaplan Ambiyansı */}
+        <div className="absolute top-[-20%] left-[-10%] w-[600px] h-[600px] bg-green-900/10 rounded-full blur-[120px] pointer-events-none animate-pulse"></div>
+        
+        <div className="w-full max-w-md bg-[#0f1115]/80 backdrop-blur-xl border border-white/10 rounded-3xl p-8 shadow-2xl relative z-10 text-center animate-in zoom-in duration-500">
+          <div className="w-20 h-20 bg-green-500/10 rounded-full flex items-center justify-center mx-auto mb-6 text-4xl border border-green-500/20 shadow-[0_0_30px_-10px_rgba(34,197,94,0.3)]">
+            📩
+          </div>
+          <h2 className="text-2xl font-black mb-4 tracking-tight text-white">Mail Kutunu Kontrol Et</h2>
+          <p className="text-gray-400 mb-8 leading-relaxed text-sm">
+            <span className="text-white font-bold">Giriş bağlantısını</span> e-posta adresine gönderdik. 
+            Lütfen spam/gereksiz klasörünü de kontrol etmeyi unutma. Linke tıkladığında hesabın onaylanacak.
+          </p>
+          <button 
+            onClick={() => {
+              setCheckEmail(false)
+              setMode('login')
+            }}
+            className="text-sm font-bold text-gray-500 hover:text-white transition underline underline-offset-4 decoration-gray-700 hover:decoration-white"
+          >
+            ← Giriş ekranına dön
+          </button>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -160,7 +192,7 @@ export default function LoginPage() {
           }
         </p>
 
-        {/* ✅ MİSAFİR GİRİŞ BUTONU (YENİ EKLENDİ) */}
+        {/* ✅ MİSAFİR GİRİŞ BUTONU */}
         <div className="mt-6 pt-6 border-t border-gray-800">
            <Link 
               href="/"
