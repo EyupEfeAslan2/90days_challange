@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react'
 import { login, signup } from '@/app/actions'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner' 
+import Link from 'next/link' // ✅ EKLENDİ
 
 export default function LoginPage() {
   const [mode, setMode] = useState<'login' | 'register'>('login')
@@ -22,31 +23,21 @@ export default function LoginPage() {
         if (mode === 'login') {
           // --- GİRİŞ İŞLEMİ ---
           await login(formData)
-          // Başarılı olursa 'login' action'ı redirect atar.
-          // Kod buraya ulaşmaz.
         } else {
           // --- KAYIT İŞLEMİ ---
-          // Signup artık bir obje dönüyor { success: true } veya { error: '...' }
           const result = await signup(formData)
           
           if (result?.error) {
-            // Sunucudan gelen net hata mesajı
             toast.error(result.error)
           } else {
-            // Başarılıysa
             toast.success('Kayıt başarılı! Lütfen giriş yapın.')
-            // Formu temizle (opsiyonel) ve Giriş sekmesine geç
             setMode('login') 
           }
         }
       } catch (error: any) {
-        // Redirect hatası (NEXT_REDIRECT) bir hata değildir, Next.js'in çalışma şeklidir.
-        // Eğer hata mesajı 'NEXT_REDIRECT' içeriyorsa hata basma.
         if (error.message === 'NEXT_REDIRECT' || error.message?.includes('NEXT_REDIRECT')) {
             return
         }
-        
-        // Gerçek bir hata varsa bas
         toast.error('İşlem başarısız. Bilgilerinizi kontrol edin.')
       }
     })
@@ -129,12 +120,10 @@ export default function LoginPage() {
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white transition p-1"
               >
                 {showPassword ? (
-                  // Gözü Kapat İkonu
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
                   </svg>
                 ) : (
-                  // Gözü Aç İkonu
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
@@ -164,12 +153,24 @@ export default function LoginPage() {
         </form>
 
         {/* Alt Bilgi */}
-        <p className="text-center mt-8 text-xs text-gray-500 leading-relaxed">
+        <p className="text-center mt-6 text-xs text-gray-500 leading-relaxed">
           {mode === 'login' 
             ? "Henüz bir hesabın yok mu? Yukarıdan 'Kayıt Ol' sekmesine geç." 
             : "Zaten bir hesabın var mı? Yukarıdan 'Giriş Yap' sekmesine geç."
           }
         </p>
+
+        {/* ✅ MİSAFİR GİRİŞ BUTONU (YENİ EKLENDİ) */}
+        <div className="mt-6 pt-6 border-t border-gray-800">
+           <Link 
+              href="/"
+              className="group flex items-center justify-center gap-2 w-full py-3.5 rounded-xl border border-gray-800 text-gray-400 font-bold text-xs hover:bg-gray-800 hover:text-white hover:border-gray-700 transition-all active:scale-95"
+            >
+              MİSAFİR OLARAK GÖZ AT
+              <span className="group-hover:translate-x-1 transition-transform">→</span>
+            </Link>
+        </div>
+
       </div>
     </div>
   )

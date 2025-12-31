@@ -6,6 +6,7 @@ import { createClient } from '@/utils/supabase/server';
 import { Toaster } from 'sonner';
 import ToastWatcher from "@/components/ToastWatcher";
 import { Suspense } from "react";
+import SuggestionBox from '@/components/SuggestionBox'; // ✅ Ekledik
 
 // ==================== FONTS ====================
 const geistSans = Geist({
@@ -61,9 +62,6 @@ export default async function RootLayout({
 
   return (
     <html lang="tr" className="dark" suppressHydrationWarning>
-      {/* CRITICAL FIX: suppressHydrationWarning buraya (body'ye) eklenmeli.
-         Tarayıcı eklentilerinin (LastPass, AdBlock vb.) yarattığı hatayı susturur.
-      */}
       <body 
         suppressHydrationWarning={true}
         className={`
@@ -79,15 +77,14 @@ export default async function RootLayout({
           {children}
         </main>
         
+        {/* ✅ ÖNERİ KUTUSU BURADA (Tüm Sayfalarda Görünür) */}
+        <SuggestionBox user={user} />
+
         {/* Toast System */}
         <Suspense fallback={null}>
           <ToastWatcher />
         </Suspense>
         
-        {/* TOASTER AYARLARI GÜNCELLENDİ:
-          - closeButton: true -> Standart, kibar 'x' işaretini açtık.
-          - richColors: true -> Renklerin daha canlı ve düzgün görünmesini sağlar.
-        */}
         <Toaster 
           position="bottom-right" 
           theme="dark"
@@ -104,7 +101,7 @@ export default async function RootLayout({
               toast: 'group',
               title: 'font-bold',
               description: 'text-sm text-gray-400',
-              closeButton: 'bg-gray-800 hover:bg-gray-700 border-gray-700', // Çarpı butonunun stili
+              closeButton: 'bg-gray-800 hover:bg-gray-700 border-gray-700',
             },
           }}
         />

@@ -1,11 +1,11 @@
 import { createClient } from '@/utils/supabase/server'
-// Action importu
 import { submitDailyLog, leaveChallenge } from '../actions' 
 import Link from 'next/link'
 import { Suspense } from 'react'
 import { redirect } from 'next/navigation'
-// DeleteButton importu eklendi
 import DeleteButton from '@/components/DeleteButton' 
+import Calendar from '@/components/Calendar' 
+import ProgressChart from '@/components/ProgressChart' // ✅ YENİ EKLENDİ
 
 // --- TYPES & INTERFACES ---
 interface Challenge {
@@ -27,6 +27,7 @@ interface DailyLog {
   sins_of_omission: string | null
   sins_of_commission: string | null
   is_completed: boolean
+  status: string // Grafik için lazım
 }
 
 // --- UTILITY FUNCTIONS ---
@@ -36,16 +37,11 @@ const normalizeChallenge = (data: Challenge | Challenge[] | null): Challenge | n
   return data
 }
 
-const calculateStreakPercentage = (logCount: number, maxDays: number = 90): number => {
-  return Math.min((logCount / maxDays) * 100, 100)
-}
-
 // --- LOCAL COMPONENTS ---
 
 // 1. Sidebar Item
 const DashboardSidebarItem = ({ challenge, isActive }: { challenge: Challenge; isActive: boolean }) => (
   <div className="relative group">
-    {/* Kart Linki */}
     <Link 
       href={`/dashboard?id=${challenge.id}`}
       className={`
@@ -69,11 +65,9 @@ const DashboardSidebarItem = ({ challenge, isActive }: { challenge: Challenge; i
           <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse shadow-[0_0_8px_#ef4444] flex-shrink-0 mt-1" />
         )}
       </div>
-      {/* Hover Efekti */}
       {!isActive && <div className="absolute inset-0 bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />}
     </Link>
 
-    {/* SİLME BUTONU */}
     <div className="absolute top-2 right-2 z-20 opacity-0 group-hover:opacity-100 transition-opacity">
         <DeleteButton 
             onDelete={async () => {
@@ -87,33 +81,11 @@ const DashboardSidebarItem = ({ challenge, isActive }: { challenge: Challenge; i
   </div>
 )
 
-// 2. Stats Panel
-const StatsPanel = ({ myLogCount, totalParticipants, activeToday }: { myLogCount: number; totalParticipants: number; activeToday: number }) => {
-  const streakPercentage = calculateStreakPercentage(myLogCount)
-  
+// 2. Stats Panel (Basitleştirildi - Grafik ayrı bileşen oldu)
+const StatsPanel = ({ totalParticipants, activeToday }: { totalParticipants: number; activeToday: number }) => {
   return (
-    <div className="sticky top-32 space-y-4 animate-in slide-in-from-left duration-700">
-      <div className="bg-[#0f1115] border border-gray-800 rounded-2xl p-6 shadow-xl">
-        <h2 className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-6 border-b border-gray-800 pb-2">
-          OPERASYON VERİLERİ
-        </h2>
-        
-        <div className="mb-8 text-center">
-          <div className="inline-flex items-baseline gap-2">
-            <span className="text-5xl font-black text-white tracking-tighter">{myLogCount}</span>
-            <span className="text-sm font-bold text-gray-500 uppercase">Gün</span>
-          </div>
-          <p className="text-xs text-gray-500 mt-1">Disiplin Sürekliliği</p>
-          
-          <div className="mt-4 w-full h-2 bg-gray-900 rounded-full overflow-hidden border border-gray-800">
-            <div 
-              className="h-full bg-gradient-to-r from-red-600 to-red-400 transition-all duration-1000 ease-out shadow-[0_0_10px_#ef4444]"
-              style={{ width: `${streakPercentage}%` }}
-            />
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-4">
+    <div className="bg-[#0f1115] border border-gray-800 rounded-2xl p-4 shadow-xl">
+        <div className="grid grid-cols-2 gap-3">
           <div className="bg-black/40 rounded-xl p-3 text-center border border-gray-800">
             <div className="text-xl font-bold text-white">{totalParticipants}</div>
             <div className="text-[9px] text-gray-500 uppercase tracking-wide font-bold mt-1">Toplam Üye</div>
@@ -124,7 +96,6 @@ const StatsPanel = ({ myLogCount, totalParticipants, activeToday }: { myLogCount
           </div>
         </div>
       </div>
-    </div>
   )
 }
 
@@ -147,7 +118,6 @@ const DailyLogForm = ({ challenge, todayLog }: { challenge: Challenge; todayLog:
             </p>
           </div>
           
-          {/* DURUM BADGE */}
           <div className={`
             flex items-center gap-2 px-4 py-2 rounded-full text-[10px] font-bold uppercase tracking-widest border shadow-lg whitespace-nowrap
             ${isCompleted 
@@ -177,7 +147,6 @@ const DailyLogForm = ({ challenge, todayLog }: { challenge: Challenge; todayLog:
                   placeholder="Bugün planlayıp da gerçekleştirmediğin görevler nelerdi?"
                   className="w-full h-48 bg-black/40 border border-gray-800 rounded-xl p-5 text-white placeholder:text-gray-600 focus:border-blue-600 focus:ring-1 focus:ring-blue-900 outline-none transition resize-none leading-relaxed text-sm"
                 />
-                <div className="absolute inset-0 rounded-xl border border-blue-500/0 group-hover:border-blue-500/10 pointer-events-none transition" />
               </div>
             </div>
 
@@ -194,7 +163,6 @@ const DailyLogForm = ({ challenge, todayLog }: { challenge: Challenge; todayLog:
                   placeholder="Sürecine zarar veren, iradeni kıran hangi eylemleri yaptın?"
                   className="w-full h-48 bg-black/40 border border-gray-800 rounded-xl p-5 text-white placeholder:text-gray-600 focus:border-red-600 focus:ring-1 focus:ring-red-900 outline-none transition resize-none leading-relaxed text-sm"
                 />
-                <div className="absolute inset-0 rounded-xl border border-red-500/0 group-hover:border-red-500/10 pointer-events-none transition" />
               </div>
             </div>
           </div>
@@ -278,10 +246,11 @@ async function DashboardPage({ searchParams }: { searchParams: Promise<any> }) {
     return <div className="min-h-screen pt-32 text-center text-red-500 font-bold">Hedef verisi yüklenemedi.</div>
   }
 
-  // ZAMAN KONTROLLERİ
   const isFuture = new Date(challenge.start_date) > new Date(today)
   const isEnded = new Date(today) > new Date(challenge.end_date)
 
+  // --- VERİ ÇEKME GÜNCELLEMESİ ---
+  // Artık sadece sayıyı değil, tüm log verisini çekiyoruz (Grafik için)
   const [
     statsResponse,
     todayStatsResponse,
@@ -290,13 +259,18 @@ async function DashboardPage({ searchParams }: { searchParams: Promise<any> }) {
   ] = await Promise.all([
     supabase.from('user_challenges').select('*', { count: 'exact', head: true }).eq('challenge_id', challenge.id),
     supabase.from('daily_logs').select('*', { count: 'exact', head: true }).eq('challenge_id', challenge.id).eq('log_date', today),
-    supabase.from('daily_logs').select('*', { count: 'exact', head: true }).eq('user_id', user.id).eq('challenge_id', challenge.id),
+    
+    // 🔥 KRİTİK DEĞİŞİKLİK: 'head: true' kaldırıldı, veri çekiliyor
+    supabase.from('daily_logs').select('*').eq('user_id', user.id).eq('challenge_id', challenge.id),
+    
     supabase.from('daily_logs').select('*').eq('user_id', user.id).eq('challenge_id', challenge.id).eq('log_date', today).maybeSingle()
   ])
 
   const totalParticipants = statsResponse.count || 0
   const activeToday = todayStatsResponse.count || 0
-  const myLogCount = myLogResponse.count || 0
+  
+  // Verileri grafiğe gönderiyoruz
+  const myLogs = myLogResponse.data || []
   const todayLog = todayLogResponse.data
 
   return (
@@ -319,51 +293,56 @@ async function DashboardPage({ searchParams }: { searchParams: Promise<any> }) {
             })}
           </nav>
 
-          <StatsPanel 
-            myLogCount={myLogCount} 
-            totalParticipants={totalParticipants} 
-            activeToday={activeToday} 
-          />
+          {/* STICKY SIDEBAR AREA */}
+          <div className="sticky top-32 space-y-4 animate-in slide-in-from-left duration-700">
+            
+            {/* 1. İstatistikler */}
+            <StatsPanel 
+                totalParticipants={totalParticipants} 
+                activeToday={activeToday} 
+            />
+
+            {/* ✅ 2. YENİ GRAFİK ALANI */}
+            <ProgressChart logs={myLogs} />
+
+            {/* 3. Takvim */}
+            <div className="bg-[#0f1115] border border-gray-800 rounded-2xl p-4 shadow-xl">
+                <div className="flex items-center gap-2 mb-4 border-b border-gray-800 pb-2">
+                    <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
+                    <h2 className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">
+                    AYLIK RAPOR
+                    </h2>
+                </div>
+                <div className="scale-95 origin-top">
+                    <Calendar challengeId={challenge.id} />
+                </div>
+            </div>
+
+          </div>
         </aside>
 
         <main className="lg:col-span-8">
           <Suspense fallback={<div className="text-gray-500 py-20 text-center animate-pulse">Veriler şifreleniyor...</div>}>
             
-            {/* 1. GELECEK SENARYOSU */}
+            {/* ... SENARYOLAR (Aynı kaldı) ... */}
             {isFuture && (
               <div className="bg-[#0f1115] border border-yellow-900/30 rounded-3xl p-10 text-center relative overflow-hidden animate-in fade-in duration-700">
-                  <div className="absolute top-0 left-0 w-full h-1 bg-yellow-600 shadow-[0_0_15px_#ca8a04]"></div>
-                  <div className="mb-6 inline-flex items-center justify-center w-20 h-20 bg-yellow-500/10 rounded-full border border-yellow-500/20 text-4xl">
-                     ⏳
-                  </div>
                   <h2 className="text-3xl font-black text-white mb-4 tracking-tight">HAZIRLIK AŞAMASI</h2>
-                  <p className="text-gray-400 text-lg mb-8 max-w-lg mx-auto leading-relaxed">
-                    Bu operasyon henüz başlamadı. Enerjini sakla ve başlangıç tarihine odaklan.
+                  <p className="text-gray-400 text-lg mb-8 max-w-lg mx-auto">
+                    Başlangıç: {new Date(challenge.start_date).toLocaleDateString('tr-TR')}
                   </p>
-                  <div className="inline-block bg-yellow-900/10 text-yellow-500 px-8 py-4 rounded-xl font-mono text-xl font-bold border border-yellow-900/40 shadow-lg">
-                     BAŞLANGIÇ: {new Date(challenge.start_date).toLocaleDateString('tr-TR')}
-                  </div>
               </div>
             )}
 
-            {/* 2. BİTMİŞ SENARYOSU */}
             {isEnded && (
                <div className="bg-[#0f1115] border border-gray-800 rounded-3xl p-10 text-center relative overflow-hidden animate-in fade-in duration-700 grayscale">
-                  <div className="absolute top-0 left-0 w-full h-1 bg-gray-600"></div>
-                  <div className="mb-6 inline-flex items-center justify-center w-20 h-20 bg-gray-800 rounded-full border border-gray-700 text-4xl">
-                     🏁
-                  </div>
                   <h2 className="text-3xl font-black text-gray-300 mb-4 tracking-tight">OPERASYON TAMAMLANDI</h2>
-                  <p className="text-gray-500 text-lg mb-8 max-w-lg mx-auto leading-relaxed">
-                    Bu meydan okuma için süre doldu. Artık yeni rapor girişi yapılamaz. Geçmiş verilerini inceleyebilirsin.
+                  <p className="text-gray-500 text-lg mb-8">
+                     Bitiş: {new Date(challenge.end_date).toLocaleDateString('tr-TR')}
                   </p>
-                  <div className="inline-block bg-gray-900 text-gray-400 px-8 py-4 rounded-xl font-mono text-sm font-bold border border-gray-800">
-                     BİTİŞ: {new Date(challenge.end_date).toLocaleDateString('tr-TR')}
-                  </div>
                </div>
             )}
 
-            {/* 3. AKTİF SENARYO */}
             {!isFuture && !isEnded && (
               <DailyLogForm challenge={challenge} todayLog={todayLog as DailyLog | null} />
             )}
