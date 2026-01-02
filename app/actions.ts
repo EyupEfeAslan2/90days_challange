@@ -32,21 +32,20 @@ export async function login(formData: FormData) {
 
 export async function signup(formData: FormData) {
   const supabase = await createClient()
+
+  // Verileri al
   const email = formData.get('email') as string
   const password = formData.get('password') as string
   
-  // Origin'i al (Email onayı linki için lazım olabilir)
-  const origin = (await headers()).get('origin')
-
-  if (!email || !password) {
-    return { error: 'E-posta ve şifre gereklidir.' }
-  }
+  // Şifre vb. kontrolü... (Mevcut kodunda varsa kalsın)
 
   const { error } = await supabase.auth.signUp({
     email,
     password,
     options: {
-      emailRedirectTo: `${origin}/auth/callback`,
+      // 🔥 İŞTE BURASI: Adresi elle, sert bir şekilde veriyoruz.
+      // auth/callback rotasını önceki adımda oluşturmuştuk, oraya gidecek.
+      emailRedirectTo: 'https://90days.com.tr/auth/callback',
     },
   })
 
@@ -54,8 +53,6 @@ export async function signup(formData: FormData) {
     return { error: error.message }
   }
 
-  // ÖNEMLİ: Redirect YOK. Sadece başarı mesajı dönüyoruz.
-  // Frontend (login/page.tsx) bunu görünce sekmeyi değiştirecek.
   return { success: true }
 }
 

@@ -2,6 +2,7 @@ import { createClient } from '@/utils/supabase/server'
 import Link from 'next/link'
 import { deleteChallenge } from './actions'
 import DeleteButton from '@/components/DeleteButton'
+import Footer from '@/components/Footer'
 
 // --- TYPES ---
 interface Challenge {
@@ -81,7 +82,7 @@ function ChallengeCard({ challenge, userId, isJoined, statusLabel, statusColor }
       <div className="relative z-10 mt-auto pt-2">
         {isJoined ? (
             <div className="flex gap-2">
-                 {/* 1. Dashboard (Primary) */}
+                {/* 1. Dashboard (Primary) */}
                 <Link 
                     href={`/dashboard?id=${challenge.id}`}
                     className="flex-1 text-center bg-white text-black py-3 rounded-lg font-bold text-xs hover:bg-gray-200 transition-transform active:scale-95 uppercase tracking-wide flex items-center justify-center gap-2"
@@ -155,7 +156,7 @@ export default async function Home() {
   })
 
   return (
-    <main className="min-h-screen bg-black text-white p-6 md:p-12 pt-32 pb-20 font-sans selection:bg-indigo-900 selection:text-white">
+    <main className="min-h-screen bg-black text-white font-sans selection:bg-indigo-900 selection:text-white flex flex-col">
       
       {/* Background Ambience */}
       <div className="fixed top-0 left-0 w-full h-full overflow-hidden -z-10 pointer-events-none">
@@ -163,7 +164,7 @@ export default async function Home() {
           <div className="absolute bottom-[-10%] left-[-10%] w-[600px] h-[600px] bg-blue-900/5 rounded-full blur-[150px]"></div>
       </div>
 
-      <div className="max-w-7xl mx-auto space-y-16">
+      <div className="flex-1 p-6 md:p-12 pt-32 pb-20 max-w-7xl mx-auto w-full space-y-16">
         
         {/* HERO SECTION */}
         <div className="flex flex-col md:flex-row justify-between items-end gap-8 border-b border-gray-800 pb-12">
@@ -231,8 +232,11 @@ export default async function Home() {
                 )}
             </div>
         )}
-
       </div>
+
+      {/* ✅ DOĞRU KULLANIM: Footer içerik bittikten sonra, en sona eklenir */}
+      <Footer />
+      
     </main>
   )
 }

@@ -6,7 +6,8 @@ import { createClient } from '@/utils/supabase/server';
 import { Toaster } from 'sonner';
 import ToastWatcher from "@/components/ToastWatcher";
 import { Suspense } from "react";
-import SuggestionBox from '@/components/SuggestionBox'; // ✅ Ekledik
+import SuggestionBox from '@/components/SuggestionBox';
+import Script from 'next/script'; // ✅ IMPORT EKLENDİ
 
 // ==================== FONTS ====================
 const geistSans = Geist({
@@ -71,13 +72,28 @@ export default async function RootLayout({
           min-h-screen flex flex-col
         `}
       >
+        {/* ✅ GOOGLE ANALYTICS BAŞLANGIÇ */}
+        <Script
+          strategy="afterInteractive"
+          src="https://www.googletagmanager.com/gtag/js?id=G-5B7NE8DGEM"
+        />
+        <Script id="google-analytics" strategy="afterInteractive">
+          {`
+            window.dataLayer = window.dataLayer || [];
+            function gtag(){dataLayer.push(arguments);}
+            gtag('js', new Date());
+            gtag('config', 'G-5B7NE8DGEM');
+          `}
+        </Script>
+        {/* ✅ GOOGLE ANALYTICS BİTİŞ */}
+
         <Navbar user={user} />
         
         <main className="flex-1">
           {children}
         </main>
         
-        {/* ✅ ÖNERİ KUTUSU BURADA (Tüm Sayfalarda Görünür) */}
+        {/* ÖNERİ KUTUSU */}
         <SuggestionBox user={user} />
 
         {/* Toast System */}
