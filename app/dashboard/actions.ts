@@ -1,3 +1,5 @@
+// app/dashboard/actions.ts
+
 'use server'
 
 import { createClient } from '@/utils/supabase/server'
@@ -13,24 +15,31 @@ export async function submitDailyLog(formData: FormData) {
     return redirect('/dashboard?error=unauthorized')
   }
 
-  // 2. Veri Doğrulama ve Hazırlama
+  // 2. Veri Doğrulama
   const challenge_id = formData.get('challenge_id') as string
-  const omission = formData.get('omission') as string // Yapılmayanlar (İhmaller)
-  const commission = formData.get('commission') as string // Yapılan Hatalar
+  const omission = formData.get('omission') as string
+  const commission = formData.get('commission') as string
 
   if (!challenge_id) return
 
-  // 3. Veritabanı İşlemi (Upsert)
-  // Aynı gün için kayıt varsa günceller, yoksa oluşturur.
+  const today = new Date().toISOString().split('T')[0]
+
+  // 3. Veritabanı İşlemi
   const { error } = await supabase
     .from('daily_logs')
     .upsert({
       user_id: user.id,
       challenge_id: challenge_id,
-      log_date: new Date().toISOString().split('T')[0], // YYYY-MM-DD
+      date: today,
+      
+      // 👇 EKRANDA GÖZÜKMESİ İÇİN GEREKLİ ALANLAR 👇
       sins_of_omission: omission,
       sins_of_commission: commission,
-      is_completed: true
+      note: `${omission} \n ${commission}`, // Yedek olarak note alanına da yazalım
+      
+      // 👇 HEM 'is_completed' HEM 'status' DOLDURUYORUZ Kİ UYUMSUZLUK OLMASIN 👇
+      is_completed: true,
+      status: 'success' 
     }, {
       onConflict: 'user_id, challenge_id, log_date'
     })
@@ -40,7 +49,7 @@ export async function submitDailyLog(formData: FormData) {
     return redirect('/dashboard?error=failed')
   }
 
-  // 4. Cache Temizle ve Yönlendir
   revalidatePath('/dashboard')
+  revalidatePath('/leaderboard') // Liderlik tablosunu da yenile
   redirect('/dashboard?message=saved')
 }
